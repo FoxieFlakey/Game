@@ -4,10 +4,10 @@ mod idented_writer;
 pub use idented_writer::IdentedWriter;
 
 #[derive(Debug)]
-pub struct ErrorWithContext {
+pub struct ErrorWithContext<Cause: Error + ?Sized + 'static> {
     pub context: String,
     pub by: &'static Location<'static>,
-    pub caused_by: Option<Box<dyn Error + 'static>>,
+    pub caused_by: Option<Box<Cause>>,
     pub stacktrace: Backtrace,
 
     // Additional error that was suppressed
@@ -23,7 +23,19 @@ pub struct SuppressionInfo {
     pub error: Box<dyn Error + 'static>
 }
 
-impl ErrorWithContext {
+#[derive(Debug)]
+pub struct EmptyError {}
+
+impl Display for EmptyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "<EmptyError is no error>")
+    }
+}
+
+impl Error for EmptyError {
+}
+
+impl ErrorWithContext<EmptyError> {
     #[track_caller]
     pub fn new<S: Into<String>>(message: S) -> Self {
         Self {
@@ -34,7 +46,9 @@ impl ErrorWithContext {
             suppressed: Vec::new()
         }
     }
+}
 
+impl<Cause: Error + 'static> ErrorWithContext<Cause> {
     #[track_caller]
     pub fn add_suppressed<E: Into<Box<dyn Error + 'static>>>(mut self, error: E) -> Self {
         self.suppressed.push(SuppressionInfo {
@@ -45,7 +59,7 @@ impl ErrorWithContext {
     }
 
     #[track_caller]
-    pub fn with_cause<S: Into<String>, E: Into<Box<dyn Error + 'static>>>(message: S, error: E) -> Self {
+    pub fn with_cause<S: Into<String>>(message: S, error: Cause) -> Self {
         Self {
             context: message.into(),
             caused_by: Some(error.into()),
@@ -56,7 +70,7 @@ impl ErrorWithContext {
     }
 }
 
-impl Display for ErrorWithContext {
+impl<Cause: Error + ?Sized + 'static> Display for ErrorWithContext<Cause> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{}", self.context)?;
         writeln!(f, "Error happened at: {}", self.by)?;
@@ -94,9 +108,9 @@ impl Display for ErrorWithContext {
     }
 }
 
-impl Error for ErrorWithContext {
+impl<Cause: Error + 'static> Error for ErrorWithContext<Cause> {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        self.caused_by.as_deref()
+        self.caused_by.as_ref().map(|x| x as &(dyn Error + 'static))
     }
 }
 

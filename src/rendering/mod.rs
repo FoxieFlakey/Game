@@ -1,4 +1,4 @@
-use std::sync::LazyLock;
+use std::{error::Error, sync::LazyLock};
 
 use crate::util::ErrorWithContext;
 
@@ -17,7 +17,7 @@ static WGPU: LazyLock<wgpu::Instance> = LazyLock::new(|| {
 
 // Init global stuffs about rendering
 // that is not per renderer
-pub fn init() -> Result<(), ErrorWithContext> {
+pub fn init() -> Result<(), ErrorWithContext<dyn Error + 'static>> {
   LazyLock::force(&WGPU);
   Ok(())
 }
