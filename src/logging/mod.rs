@@ -102,12 +102,14 @@ impl Logger {
     }
 
     pub fn print_log(&self, level: LogLevel, args: Arguments<'_>) {
-        let secs = (Instant::now() - *STARTUP_TIME).as_secs_f32();
-        println!(
-            "[{secs:#14.6}] [{}/{level}] [{}] {args}",
-            thread::current().name().unwrap_or("??"),
-            self.name
-        );
+        for line in args.to_string().lines() {
+            let secs = (Instant::now() - *STARTUP_TIME).as_secs_f32();
+            println!(
+                "[{secs:#14.6}] [{}/{level}] [{}] {line}",
+                thread::current().name().unwrap_or("??"),
+                self.name
+            );
+        }
     }
 }
 
@@ -142,37 +144,39 @@ pub fn init() {
                 }
             }
 
-            match record.level() {
-                log::Level::Error => error!(
-                    LOGGER_FROM_LOG_CRATE,
-                    "[mod {}] {}",
-                    mod_name,
-                    record.args()
-                ),
-                log::Level::Warn => warn!(
-                    LOGGER_FROM_LOG_CRATE,
-                    "[mod {}] {}",
-                    mod_name,
-                    record.args()
-                ),
-                log::Level::Info => info!(
-                    LOGGER_FROM_LOG_CRATE,
-                    "[mod {}] {}",
-                    mod_name,
-                    record.args()
-                ),
-                log::Level::Debug => debug!(
-                    LOGGER_FROM_LOG_CRATE,
-                    "[mod {}] {}",
-                    mod_name,
-                    record.args()
-                ),
-                log::Level::Trace => trace!(
-                    LOGGER_FROM_LOG_CRATE,
-                    "[mod {}] {}",
-                    mod_name,
-                    record.args()
-                ),
+            for line in record.args().to_string().lines() {
+                match record.level() {
+                    log::Level::Error => error!(
+                        LOGGER_FROM_LOG_CRATE,
+                        "[mod {}] {}",
+                        mod_name,
+                        line
+                    ),
+                    log::Level::Warn => warn!(
+                        LOGGER_FROM_LOG_CRATE,
+                        "[mod {}] {}",
+                        mod_name,
+                        line
+                    ),
+                    log::Level::Info => info!(
+                        LOGGER_FROM_LOG_CRATE,
+                        "[mod {}] {}",
+                        mod_name,
+                        line
+                    ),
+                    log::Level::Debug => debug!(
+                        LOGGER_FROM_LOG_CRATE,
+                        "[mod {}] {}",
+                        mod_name,
+                        line
+                    ),
+                    log::Level::Trace => trace!(
+                        LOGGER_FROM_LOG_CRATE,
+                        "[mod {}] {}",
+                        mod_name,
+                        line
+                    )
+                }
             }
         }
 

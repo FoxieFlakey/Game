@@ -3,12 +3,13 @@
 
 use std::{cell::RefCell, sync::Arc};
 
-use crate::local_resource::LocalResource;
+use crate::{local_resource::LocalResource, util::ErrorWithContext};
 
 mod local_resource;
 mod logging;
 mod runtimes;
 mod rendering;
+mod util;
 
 fn main() {
     logging::init();
@@ -36,5 +37,15 @@ async fn async_main() {
         return
     }
 
+    let cause = ErrorWithContext::new("Writing error: disk full");
+    let error_while_cleaning = ErrorWithContext::new("Cannot close file: unknown file descriptor");
+    let error = ErrorWithContext::with_cause("Cannot save file", cause)
+        .add_suppressed(error_while_cleaning);
 
+    info!("err: {}", error);
 }
+
+
+
+
+
