@@ -1,0 +1,17 @@
+[package]
+name = "foxie_fox_game"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+chrono = "0.4.44"
+closure = "0.3.0"
+futures = "0.3.32"
+log = "0.4.29"
+raw-window-handle = "0.6.2"
+sdl3 = { version = "0.17.3", features = ["raw-window-handle"] }
+thread_local = "1.1.9"
+tokio = { version = "1.52.3", features = ["rt", "rt-multi-thread", "fs", "signal", "time", "macros"] }
+tokio-macros = "2.7.0"
+tokio-scoped = "0.2.0"
+

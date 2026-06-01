@@ -1,0 +1,10 @@
+/target
+
+# Vim stuffs
+# Swap files
+[._]*.s[a-z][a-z]
+
+# Temporaries from vim
+.netrwhist
+
+
