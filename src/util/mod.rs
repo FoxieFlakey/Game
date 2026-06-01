@@ -50,6 +50,13 @@ impl ErrorWithContext<EmptyError> {
 
 impl<Cause: Error + 'static> ErrorWithContext<Cause> {
     #[track_caller]
+    pub fn wrap<S: Into<String>>(self, message: S) -> ErrorWithContext<Self> {
+        ErrorWithContext::with_cause_impl(message, self.into(), Location::caller())
+    }
+}
+
+impl<Cause: Error + ?Sized + 'static> ErrorWithContext<Cause> {
+    #[track_caller]
     pub fn add_suppressed<E: Into<Box<dyn Error + 'static>>>(mut self, error: E) -> Self {
         self.suppressed.push(SuppressionInfo {
             by: Location::caller(),
@@ -59,10 +66,14 @@ impl<Cause: Error + 'static> ErrorWithContext<Cause> {
     }
 
     #[track_caller]
-    pub fn with_cause<S: Into<String>>(message: S, error: Cause) -> Self {
+    pub fn with_cause<S: Into<String>>(message: S, error: Box<Cause>) -> Self {
+        Self::with_cause_impl(message, error, Location::caller())
+    }
+
+    fn with_cause_impl<S: Into<String>>(message: S, error: Box<Cause>, by: &'static Location<'static>) -> Self {
         Self {
             context: message.into(),
-            caused_by: Some(error.into()),
+            caused_by: Some(error),
             by: Location::caller(),
             stacktrace: Backtrace::capture(),
             suppressed: Vec::new()
@@ -108,9 +119,27 @@ impl<Cause: Error + ?Sized + 'static> Display for ErrorWithContext<Cause> {
     }
 }
 
+impl Error for ErrorWithContext<dyn Error + 'static> {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        self.caused_by.as_ref().map(|x| &**x)
+    }
+}
+
 impl<Cause: Error + 'static> Error for ErrorWithContext<Cause> {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         self.caused_by.as_ref().map(|x| x as &(dyn Error + 'static))
+    }
+}
+
+impl<Cause: Error + 'static> From<ErrorWithContext<Cause>> for ErrorWithContext<dyn Error + 'static> {
+    fn from(value: ErrorWithContext<Cause>) -> ErrorWithContext<dyn Error + 'static> {
+        ErrorWithContext {
+            context: value.context,
+            by: value.by,
+            caused_by: value.caused_by.map(|x| x as Box<dyn Error + 'static>),
+            stacktrace: value.stacktrace,
+            suppressed: value.suppressed
+        }
     }
 }
 

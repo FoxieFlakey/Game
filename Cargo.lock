@@ -212,6 +212,7 @@ dependencies = [
  "log",
  "raw-window-handle",
  "sdl3",
+ "thiserror",
  "thread_local",
  "tokio",
  "tokio-macros",

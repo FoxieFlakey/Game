@@ -2,7 +2,7 @@ use std::{error::Error, sync::LazyLock};
 
 use crate::util::ErrorWithContext;
 
-static WGPU: LazyLock<wgpu::Instance> = LazyLock::new(|| {
+pub static WGPU: LazyLock<wgpu::Instance> = LazyLock::new(|| {
     wgpu::Instance::new(wgpu::InstanceDescriptor {
         backends: wgpu::Backends::PRIMARY,
         flags: wgpu::InstanceFlags::debugging(),
