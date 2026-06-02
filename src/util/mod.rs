@@ -1,5 +1,7 @@
 use std::{backtrace::{Backtrace, BacktraceStatus}, error::Error, fmt::{Display, Write}, panic::Location};
 
+pub mod sig_safe;
+
 mod idented_writer;
 pub use idented_writer::IdentedWriter;
 
@@ -46,7 +48,7 @@ impl From<String> for StringError {
     }
 }
 
-impl ErrorWithContext<StringError, dyn Error> {
+impl ErrorWithContext<StringError, dyn Error + 'static> {
     #[track_caller]
     pub fn new<S: Into<String>>(message: S) -> Self {
         Self {
@@ -155,6 +157,19 @@ impl<ThisError: Error + ?Sized + 'static> Error for ErrorWithContext<ThisError, 
 impl<ThisError: Error + ?Sized + 'static, Cause: Error + 'static> Error for ErrorWithContext<ThisError, Cause> {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         self.caused_by.as_ref().map(|x| x as &(dyn Error + 'static))
+    }
+}
+
+impl ErrorWithContext<dyn Error + 'static, dyn Error + 'static> {
+    #[track_caller]
+    pub fn new_err<TheError: Error + 'static>(value: TheError) -> ErrorWithContext<dyn Error + 'static, dyn Error + 'static> {
+        ErrorWithContext {
+            the_error: Box::new(value) as Box<dyn Error + 'static>,
+            by: Location::caller(),
+            caused_by: None,
+            stacktrace: Backtrace::capture(),
+            suppressed: Vec::new()
+        }
     }
 }
 
