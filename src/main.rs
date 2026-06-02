@@ -1,12 +1,11 @@
 #![feature(unsafe_cell_access)]
 #![feature(current_thread_id)]
 
-use std::{error::Error, pin::Pin, rc::Rc, sync::atomic::{AtomicBool, AtomicU32, Ordering}, task::Poll, time::{Duration, Instant}};
+use std::{error::Error, pin::Pin, task::Poll, time::{Duration, Instant}};
 
 use futures::{FutureExt, poll};
-use tokio::{signal::unix::{SignalKind, signal}, sync::Notify};
 
-use crate::{local_resource::LocalResource, util::{ErrorWithContext, StringError, sig_safe}, window::Window};
+use crate::{local_resource::LocalResource, util::ErrorWithContext, window::Window};
 
 mod local_resource;
 mod logging;
@@ -15,136 +14,26 @@ mod rendering;
 mod util;
 mod window;
 mod states;
-
-// Maximum of interrupts before hard quit triggered
-const WARN_INTERRUPT_COUNT: u32 = 3;
-const MAX_INTERRUPT_COUNT: u32 = 5;
-static INTERRUPT_COUNT: AtomicU32 = AtomicU32::new(0);
-
-// Different counter for emergency sigint, which bypasses
-// game loop, directly handled in signal handler
-const WARN_SIG_INTERRUPT_COUNT: u32 = 8;
-const MAX_SIG_INTERRUPT_COUNT: u32 = 15;
-static SIG_INTERRUPT_COUNT: AtomicU32 = AtomicU32::new(0);
-
-// Give graceful 10 seconds for shutting down
-const GRACEFUL_SHUTDOWN_MILISEC: u64 = 10000;
-static IS_SHUTTING_DONW: AtomicBool = AtomicBool::new(false);
-
-fn handle_sig_term() {
-    if !IS_SHUTTING_DONW.load(Ordering::Relaxed) {
-        return
-    }
-
-    sig_safe::write_str_to_stdout("[Signal Handler] Main thread didnt cleanup in time before next SIGTERM, hard quitting\n");
-    sig_safe::exit(1);
-}
-
-fn handle_sig_hardquit() {
-    let current_interrupts = SIG_INTERRUPT_COUNT.fetch_add(1, Ordering::Relaxed).saturating_add(1);
-    if current_interrupts >= MAX_SIG_INTERRUPT_COUNT {
-        sig_safe::write_str_to_stdout("[Signal handler] Main thread does not respond to signal after ");
-        let mut buf = itoa::Buffer::new();
-        sig_safe::write_str_to_stdout(buf.format(MAX_SIG_INTERRUPT_COUNT));
-        sig_safe::write_str_to_stdout(" interrupts. Hard quitting now\n");
-
-        sig_safe::exit(1);
-    }
-    
-    if current_interrupts >= WARN_SIG_INTERRUPT_COUNT {
-        sig_safe::write_str_to_stdout("[Signal handler] Main thread does not respond to signals, hard quiting via signal in ");
-        let mut buf = itoa::Buffer::new();
-        sig_safe::write_str_to_stdout(buf.format(MAX_SIG_INTERRUPT_COUNT.saturating_sub(current_interrupts)));
-        sig_safe::write_str_to_stdout(" interrupts\n");
-    }
-}
+mod fail_safe;
 
 fn main() {
     logging::init();
+    if let Err(e) = fail_safe::init() {
+        fatal!("Cannot initialize fail safe: {e}");
+        return;
+    }
     crate::info!("Hello, world!");
     
-    // Installing quit handling signal early
-    // SAFETY: The handler is only calls async-signal-safe functions and does not panics
-    if let Err(e) = unsafe { signal_hook::low_level::register(signal_hook::consts::SIGINT, handle_sig_hardquit) } {
-        crate::fatal!("Cannot install SIGINT handler: {e}");
-        return
-    }
-    
-    // SAFETY: The handler is only calls async-signal-safe functions and does not panics
-    if let Err(e) = unsafe { signal_hook::low_level::register(signal_hook::consts::SIGTERM, handle_sig_term) } {
-        crate::fatal!("Cannot install SIGTERM handler: {e}");
-        return
-    }
-
     match tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
     {
         Ok(x) => {
             runtimes::main::set(x);
-            let res = runtimes::main::get().block_on(async {
-                let mut sigint = signal(SignalKind::interrupt())
-                    .map_err(|e| ErrorWithContext::with_message("Cannot install SIGINT handler", Box::new(e)))?;
-                let mut sigterm = signal(SignalKind::terminate())
-                    .map_err(|e| ErrorWithContext::with_message("Cannot install SIGTERM handler", Box::new(e)))?;
-                let quit_notifier = Rc::new(Notify::new());
+            let res = runtimes::main::get().block_on(fail_safe::fail_safe_guard(|x| {
+                Box::pin(async_main(x))
+            }));
 
-                let main_future = async_main(|| {
-                    let inner_notifier = quit_notifier.clone();
-                    Box::pin(async move { inner_notifier.notified().await })
-                });
-                tokio::pin!(main_future);
-
-                loop {
-                    tokio::select! {
-                        _ = sigint.recv() => {
-                            let current_interrupts = INTERRUPT_COUNT.fetch_add(1, Ordering::Relaxed).saturating_add(1);
-                            if current_interrupts >= MAX_INTERRUPT_COUNT {
-                                alert!("Unresponsive main loop. Hard quitting now, interrupts exceeds {MAX_INTERRUPT_COUNT}");
-                                break;
-                            }
-                            
-                            if current_interrupts >= WARN_INTERRUPT_COUNT {
-                                alert!("Unresponsive main loop. Hard quit will trigger in {} signal count", MAX_INTERRUPT_COUNT.saturating_sub(current_interrupts));
-                            }
-
-                            if current_interrupts == 1 {
-                                alert!("SIGINT or Ctrl-C received starting orderly shutdown...");
-                            }
-                            quit_notifier.notify_waiters();
-                        }
-                        _ = sigterm.recv() => {
-                            // Sigterm works like trigger one quit and starts timer
-                            // if timer exhausted and program hasn't cleaned up
-                            // perform hard exits anyway.
-                            // 
-                            // SIGINT is not handled in here
-                            let deadline = Instant::now() + Duration::from_millis(GRACEFUL_SHUTDOWN_MILISEC);
-                            alert!("SIGTERM received starting orderly shutdown with deadline in {GRACEFUL_SHUTDOWN_MILISEC} ms");
-                            
-                            IS_SHUTTING_DONW.store(true, Ordering::Relaxed);
-                            quit_notifier.notify_waiters();
-
-                            tokio::select! {
-                                ret = &mut main_future => {
-                                    return ret;
-                                }
-
-                                _ = tokio::time::sleep_until(deadline.into()) => {
-                                    fatal!("Program did not shutdown in {GRACEFUL_SHUTDOWN_MILISEC} ms");
-                                }
-                            }
-                            break;
-                        }
-                        ret = &mut main_future => {
-                            // Game done running
-                            return ret;
-                        }
-                    }
-                }
-
-                Err(ErrorWithContext::new_err(StringError::from("Hard quit triggered".to_string())))
-            });
             if let Err(e) = res {
                 crate::fatal!("Cannot run game: {e}");
             }

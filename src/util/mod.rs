@@ -75,7 +75,7 @@ impl<TheError: Error + ?Sized + 'static> ErrorWithContext<TheError, dyn Error + 
     }
 }
 
-impl<Cause: Error + 'static> ErrorWithContext<StringError, Cause> {
+impl<Cause: Error + ?Sized + 'static> ErrorWithContext<StringError, Cause> {
     #[track_caller]
     pub fn with_message<S: Into<String>>(message: S, cause: Box<Cause>) -> Self {
         Self::with_cause_impl(StringError::from(message.into()).into(), cause, Location::caller())
