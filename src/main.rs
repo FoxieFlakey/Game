@@ -136,7 +136,7 @@ async fn async_main(
     while !do_quit {
         if let Poll::Ready(_) = poll!(&mut quit_future) {
             // Quit trigger from somewhere else
-            //do_quit = true;
+            do_quit = true;
         } else {
             handle_input(&mut resources, prev_start_of_render, start_of_render, &mut do_quit).await;
         }
