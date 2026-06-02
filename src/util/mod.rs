@@ -4,8 +4,8 @@ mod idented_writer;
 pub use idented_writer::IdentedWriter;
 
 #[derive(Debug)]
-pub struct ErrorWithContext<Cause: Error + ?Sized + 'static> {
-    pub context: String,
+pub struct ErrorWithContext<TheError: Error + ?Sized + 'static, Cause: Error + ?Sized + 'static = dyn Error + 'static> {
+    pub the_error: Box<TheError>,
     pub by: &'static Location<'static>,
     pub caused_by: Option<Box<Cause>>,
     pub stacktrace: Backtrace,
@@ -24,22 +24,33 @@ pub struct SuppressionInfo {
 }
 
 #[derive(Debug)]
-pub struct EmptyError {}
+pub struct StringError {
+    pub message: String
+}
 
-impl Display for EmptyError {
+impl Display for StringError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "<EmptyError is no error>")
+        write!(f, "{}", self.message)
     }
 }
 
-impl Error for EmptyError {
+impl Error for StringError {
+    fn description(&self) -> &str {
+        &self.message
+    }
 }
 
-impl ErrorWithContext<EmptyError> {
+impl From<String> for StringError {
+    fn from(value: String) -> Self {
+        Self { message: value }
+    }
+}
+
+impl ErrorWithContext<StringError, dyn Error> {
     #[track_caller]
     pub fn new<S: Into<String>>(message: S) -> Self {
         Self {
-            context: message.into(),
+            the_error: StringError::from(message.into()).into(),
             caused_by: None,
             by: Location::caller(),
             stacktrace: Backtrace::capture(),
@@ -48,14 +59,28 @@ impl ErrorWithContext<EmptyError> {
     }
 }
 
-impl<Cause: Error + 'static> ErrorWithContext<Cause> {
+impl<TheError: Error + ?Sized + 'static, Cause: Error + 'static> ErrorWithContext<TheError, Cause> {
     #[track_caller]
-    pub fn wrap<S: Into<String>>(self, message: S) -> ErrorWithContext<Self> {
-        ErrorWithContext::with_cause_impl(message, self.into(), Location::caller())
+    pub fn wrap<S: Into<String>>(self, message: S) -> ErrorWithContext<StringError, Self> {
+        ErrorWithContext::with_cause_impl(StringError::from(message.into()).into(), Box::new(self), Location::caller())
     }
 }
 
-impl<Cause: Error + ?Sized + 'static> ErrorWithContext<Cause> {
+impl<TheError: Error + ?Sized + 'static> ErrorWithContext<TheError, dyn Error + 'static> {
+    #[track_caller]
+    pub fn wrap<S: Into<String>>(self, message: S) -> ErrorWithContext<StringError, Self> {
+        ErrorWithContext::with_cause_impl(StringError::from(message.into()).into(), Box::new(self), Location::caller())
+    }
+}
+
+impl<Cause: Error + 'static> ErrorWithContext<StringError, Cause> {
+    #[track_caller]
+    pub fn with_message<S: Into<String>>(message: S, cause: Box<Cause>) -> Self {
+        Self::with_cause_impl(StringError::from(message.into()).into(), cause, Location::caller())
+    }
+}
+
+impl<TheError: Error + ?Sized + 'static, Cause: Error + 'static> ErrorWithContext<TheError, Cause> {
     #[track_caller]
     pub fn add_suppressed<E: Into<Box<dyn Error + 'static>>>(mut self, error: E) -> Self {
         self.suppressed.push(SuppressionInfo {
@@ -64,26 +89,28 @@ impl<Cause: Error + ?Sized + 'static> ErrorWithContext<Cause> {
         });
         self
     }
-
+    
     #[track_caller]
-    pub fn with_cause<S: Into<String>>(message: S, error: Box<Cause>) -> Self {
-        Self::with_cause_impl(message, error, Location::caller())
+    pub fn with_cause(err: Box<TheError>, cause: Box<Cause>) -> Self {
+        Self::with_cause_impl(err, cause, Location::caller())
     }
+}
 
-    fn with_cause_impl<S: Into<String>>(message: S, error: Box<Cause>, by: &'static Location<'static>) -> Self {
+impl<TheError: Error + ?Sized + 'static, Cause: Error + ?Sized + 'static> ErrorWithContext<TheError, Cause> {
+    fn with_cause_impl(err: Box<TheError>, cause: Box<Cause>, by: &'static Location<'static>) -> Self {
         Self {
-            context: message.into(),
-            caused_by: Some(error),
-            by: Location::caller(),
+            the_error: err,
+            caused_by: Some(cause),
+            by,
             stacktrace: Backtrace::capture(),
             suppressed: Vec::new()
         }
     }
 }
 
-impl<Cause: Error + ?Sized + 'static> Display for ErrorWithContext<Cause> {
+impl<TheError: Error + ?Sized + 'static, Cause: Error + ?Sized + 'static> Display for ErrorWithContext<TheError, Cause> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{}", self.context)?;
+        writeln!(f, "{}", self.the_error)?;
         writeln!(f, "Error happened at: {}", self.by)?;
         match self.stacktrace.status() {
             BacktraceStatus::Disabled => writeln!(f, "Stacktrace disabled")?,
@@ -119,22 +146,22 @@ impl<Cause: Error + ?Sized + 'static> Display for ErrorWithContext<Cause> {
     }
 }
 
-impl Error for ErrorWithContext<dyn Error + 'static> {
+impl<ThisError: Error + ?Sized + 'static> Error for ErrorWithContext<ThisError, dyn Error + 'static> {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         self.caused_by.as_ref().map(|x| &**x)
     }
 }
 
-impl<Cause: Error + 'static> Error for ErrorWithContext<Cause> {
+impl<ThisError: Error + ?Sized + 'static, Cause: Error + 'static> Error for ErrorWithContext<ThisError, Cause> {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         self.caused_by.as_ref().map(|x| x as &(dyn Error + 'static))
     }
 }
 
-impl<Cause: Error + 'static> From<ErrorWithContext<Cause>> for ErrorWithContext<dyn Error + 'static> {
-    fn from(value: ErrorWithContext<Cause>) -> ErrorWithContext<dyn Error + 'static> {
+impl<TheError: Error + 'static, Cause: Error + 'static> From<ErrorWithContext<TheError, Cause>> for ErrorWithContext<dyn Error + 'static, dyn Error + 'static> {
+    fn from(value: ErrorWithContext<TheError, Cause>) -> ErrorWithContext<dyn Error + 'static, dyn Error + 'static> {
         ErrorWithContext {
-            context: value.context,
+            the_error: value.the_error as Box<dyn Error + 'static>,
             by: value.by,
             caused_by: value.caused_by.map(|x| x as Box<dyn Error + 'static>),
             stacktrace: value.stacktrace,

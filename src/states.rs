@@ -24,5 +24,7 @@ macro_rules! define_state (
 // SDL subsystems which only accessible on main thread
 define_state!(sdl, crate::local_resource::Accessor<crate::SdlState>);
 
+// Main states the same, only accessible from main thread
+define_state!(main, crate::local_resource::Accessor<crate::MainState>);
 
 

@@ -161,39 +161,21 @@ impl<T> LocalResource<T> {
         )
     }
 
-    // Poll for new requests to access the resource, till budget-ed
-    // deadline reached. When this function return deadline always
-    // already reached
+    // Poll for new requests to access the resource, continuously.
     //
     // # Cancelation safety
-    // This function is cancelation safe
-    pub async fn poll_while(&mut self, deadline: Instant) {
-        let deadline_fut = sleep_until(deadline.into());
-
-        tokio::pin!(deadline_fut);
+    // This function is cancelation safe, no requests lost if canceled
+    pub async fn poll_loop(&mut self) {
         loop {
-            let req_maybe;
-            select! {
-                _ = &mut deadline_fut => {
-                    break
-                }
+            let Some(req) = self.request_receiver.recv().await else {
+                return
+            };
 
-                res = self.request_receiver.recv() => {
-                    req_maybe = res;
-                }
-            }
-
-            if let Some(req) = req_maybe {
-                // SAFETY: Self being !Send and !Sync ensures that that reference to the data
-                // doesnt violate the safety of it (which is assumed to be !Send and !Sync)
-                // Handle request for accessing
-                let reference = unsafe { self.shared.data.as_ref_unchecked() };
-                req(reference)
-            } else {
-                // There no possible request lets do nothing till deadline
-                deadline_fut.await;
-                return;
-            }
+            // SAFETY: Self being !Send and !Sync ensures that that reference to the data
+            // doesnt violate the safety of it (which is assumed to be !Send and !Sync)
+            // Handle request for accessing
+            let reference = unsafe { self.shared.data.as_ref_unchecked() };
+            req(reference)
         }
     }
 }

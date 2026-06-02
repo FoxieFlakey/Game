@@ -1,7 +1,7 @@
 #![feature(unsafe_cell_access)]
 #![feature(current_thread_id)]
 
-use std::error::Error;
+use std::{cmp, error::Error, time::{Duration, Instant}};
 
 use crate::{local_resource::LocalResource, util::ErrorWithContext, window::Window};
 
@@ -41,55 +41,130 @@ pub struct SdlState {
   sdl: sdl3::Sdl,
   audio: sdl3::AudioSubsystem,
   video: sdl3::VideoSubsystem,
-  event: sdl3::EventSubsystem
+  event: sdl3::EventSubsystem,
+  event_pump: sdl3::EventPump
 }
 
-struct ResourcesInitialized {
-    sdl_resource: LocalResource<SdlState>
+pub struct MainState {
+    window: Window
 }
 
-async fn init() -> Result<ResourcesInitialized, ErrorWithContext<dyn Error + 'static>> {
+struct Resources {
+    sdl_resource: LocalResource<SdlState>,
+    main_resource: LocalResource<MainState>
+}
+
+impl Resources {
+    async fn poll_loop(&mut self) -> ! {
+        tokio::join!(
+            self.sdl_resource.poll_loop(),
+            self.main_resource.poll_loop()
+        );
+        
+        panic!("Something horribly gone wrong, poll loop for resources intended to never finishes");
+    }
+}
+
+async fn init() -> Result<Resources, ErrorWithContext<dyn Error + 'static>> {
     rendering::init()?;
 
     let sdl = sdl3::init()
-        .map_err(|x| ErrorWithContext::with_cause("Cannot initialize SDL3", Box::new(x)))?;
-    let event = sdl.event()
-        .map_err(|x| ErrorWithContext::with_cause("Cannot initialize events subsystem", Box::new(x)))?;
-    let video = sdl.video()
-        .map_err(|x| ErrorWithContext::with_cause("Cannot initialize video subsystem", Box::new(x)))?;
-    let audio = sdl.audio()
-        .map_err(|x| ErrorWithContext::with_cause("Cannot initialize audio subsystem", Box::new(x)))?;
-
+            .map_err(|x| ErrorWithContext::with_message("Cannot initialize SDL3", Box::new(x)))?;
     let (sdl_resource, accessor) = LocalResource::new("SDL subsystems", SdlState {
-        sdl,
-        event,
-        video,
-        audio
+        event: sdl.event()
+            .map_err(|x| ErrorWithContext::with_message("Cannot initialize events subsystem", Box::new(x)))?,
+        video: sdl.video()
+            .map_err(|x| ErrorWithContext::with_message("Cannot initialize video subsystem", Box::new(x)))?,
+        audio: sdl.audio()
+            .map_err(|x| ErrorWithContext::with_message("Cannot initialize audio subsystem", Box::new(x)))?,
+        event_pump: sdl.event_pump()
+            .map_err(|x| ErrorWithContext::with_message("Cannot get SDL event pump", Box::new(x)))?,
+        sdl
     });
     states::sdl::set(accessor);
 
     info!("SDL3 initialized");
 
-    Ok(ResourcesInitialized {
-        sdl_resource
-    })
-}
-
-async fn async_main() -> Result<(), ErrorWithContext<dyn Error + 'static>> {
-    runtimes::init();
-    let resources = init().await?;
     let window = Window::new(
-        resources.sdl_resource.get()
+        sdl_resource.get()
             .video
             .window("Game UwU", 1280, 720)
             .vulkan()
             .position_centered()
     ).map_err(|x| x.wrap("Failed to create window"))?;
 
+    let (main_resource, accessor) = LocalResource::new("Main state", MainState {
+        window
+    });
+    states::main::set(accessor);
+
+    info!("Game window created");
+
+    Ok(Resources {
+        sdl_resource,
+        main_resource
+    })
+}
+
+async fn async_main() -> Result<(), ErrorWithContext<dyn Error + 'static>> {
+    runtimes::init();
+    let mut resources = init().await?;
+
+    // Main game loop
+    let mut do_quit = false;
+    let target_frame_time = Duration::from_millis(1000 / 60);
+    let mut prev_start_of_render = Instant::now();
+    let mut start_of_render = Instant::now();
+    while !do_quit {
+        handle_input(&mut resources, prev_start_of_render, start_of_render, &mut do_quit).await;
+        if do_quit {
+            info!("Quit requested, quitting game");
+        }
+
+        let end_of_render = Instant::now();
+        let render_time = end_of_render - start_of_render;
+        
+        // Lets poll for new request to access main resources
+        // and wait till deadline passed
+        let sleep_deadline = end_of_render + target_frame_time.saturating_sub(render_time);
+        tokio::select! {
+            _ = resources.poll_loop() => {}
+            _ = tokio::time::sleep_until(sleep_deadline.into()) => {
+                // Deadline passed, always sleep till deadline
+                // as poll_loop will never be done
+            }
+        }
+
+        prev_start_of_render = start_of_render;
+        start_of_render = sleep_deadline;
+    }
+
     Ok(())
 }
 
+async fn handle_input(resources: &mut Resources, prev_start_of_render: Instant, start_of_render: Instant, do_quit: &mut bool) {
+    #[expect(unused)]
+    let delta_time = start_of_render - prev_start_of_render;
+    let main_window_id = resources.main_resource.get().window.get_id().get();
+     
+    // Render and input handle code here
+    for event in resources.sdl_resource.get_mut().event_pump.poll_iter() {
+        tokio::task::yield_now().await;
+        match event {
+            sdl3::event::Event::Quit { .. } => {
+                *do_quit = true;
+            }
+            sdl3::event::Event::Window { window_id, win_event: sdl3::event::WindowEvent::CloseRequested, .. } => {
+                if window_id != main_window_id {
+                    continue;
+                }
+                *do_quit = true;
+            }
 
+            _ => {}
+        }
+    }
+}
 
 
 

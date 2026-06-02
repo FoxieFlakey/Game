@@ -3,7 +3,7 @@ use std::num::NonZero;
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use thiserror::Error;
 
-use crate::{rendering, util::ErrorWithContext};
+use crate::{rendering, util::{ErrorWithContext, StringError}};
 
 
 pub struct Window {
@@ -27,9 +27,9 @@ pub enum CreateWindowError {
 }
 
 impl Window {
-    pub fn new(builder: &sdl3::video::WindowBuilder) -> Result<Self, ErrorWithContext<CreateWindowError>> {
+    pub fn new(builder: &sdl3::video::WindowBuilder) -> Result<Self, ErrorWithContext<StringError, CreateWindowError>> {
         let win = builder.build()
-            .map_err(|e| ErrorWithContext::with_cause("Cannot create window", CreateWindowError::from(e).into()))?;
+            .map_err(|e| ErrorWithContext::with_message("Cannot create window", CreateWindowError::from(e).into()))?;
 
         Ok(Window {
             surface: unsafe {
@@ -37,12 +37,12 @@ impl Window {
                     // TODO: Handle this properly so platform which dont have display_handle
                     // dont need this to be Some
                     raw_display_handle: Some(win.display_handle()
-                        .map_err(|e| ErrorWithContext::with_cause("Cannot create window", CreateWindowError::GetDisplayHandle(e).into()))?
+                        .map_err(|e| ErrorWithContext::with_message("Cannot create window", CreateWindowError::GetDisplayHandle(e).into()))?
                         .as_raw()),
                     raw_window_handle: win.window_handle()
-                        .map_err(|e| ErrorWithContext::with_cause("Cannot create window", CreateWindowError::GetWindowHandle(e).into()))?
+                        .map_err(|e| ErrorWithContext::with_message("Cannot create window", CreateWindowError::GetWindowHandle(e).into()))?
                         .as_raw()
-                }).map_err(|e| ErrorWithContext::with_cause("Cannot create window", CreateWindowError::from(e).into()))?
+                }).map_err(|e| ErrorWithContext::with_message("Cannot create window", CreateWindowError::from(e).into()))?
             },
             win
         })
@@ -73,7 +73,7 @@ impl Window {
         (w as u32, h as u32)
     }
 
-    pub fn set_visibility(&mut self, is_visible: bool) -> Result<(), ErrorWithContext<sdl3::Error>> {
+    pub fn set_visibility(&mut self, is_visible: bool) -> Result<(), ErrorWithContext<StringError, sdl3::Error>> {
         let result;
         if is_visible {
             result = self.win.show();
@@ -82,7 +82,7 @@ impl Window {
         }
 
         if !result {
-            Err(ErrorWithContext::with_cause("Cannot change visibility of window", sdl3::get_error().into()))
+            Err(ErrorWithContext::with_message("Cannot change visibility of window", sdl3::get_error().into()))
         } else {
             Ok(())
         }
