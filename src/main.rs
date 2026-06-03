@@ -5,7 +5,7 @@ use std::{error::Error, pin::Pin, task::Poll, time::{Duration, Instant}};
 
 use futures::{FutureExt, poll};
 
-use crate::{local_resource::LocalResource, util::ErrorWithContext, window::Window};
+use crate::{local_resource::LocalResource, rendering::Renderer, util::ErrorWithContext, window::Window};
 
 mod local_resource;
 mod logging;
@@ -15,6 +15,7 @@ mod util;
 mod window;
 mod states;
 mod fail_safe;
+mod wgpu_async;
 
 fn main() {
     logging::init();
@@ -61,14 +62,16 @@ pub struct MainState {
 
 struct Resources {
     sdl_resource: LocalResource<SdlState>,
-    main_resource: LocalResource<MainState>
+    main_resource: LocalResource<MainState>,
+	renderer_resource: LocalResource<Renderer>
 }
 
 impl Resources {
     async fn poll_loop(&mut self) -> ! {
         tokio::join!(
             self.sdl_resource.poll_loop(),
-            self.main_resource.poll_loop()
+            self.main_resource.poll_loop(),
+			self.renderer_resource.poll_loop(),
         );
         
         panic!("Something horribly gone wrong, poll loop for resources intended to never finishes");
@@ -76,7 +79,7 @@ impl Resources {
 }
 
 async fn init() -> Result<Resources, ErrorWithContext<dyn Error + 'static>> {
-    rendering::init()?;
+    rendering::init().await?;
 
     let sdl = sdl3::init()
             .map_err(|x| ErrorWithContext::with_message("Cannot initialize SDL3", Box::new(x)))?;
@@ -110,9 +113,22 @@ async fn init() -> Result<Resources, ErrorWithContext<dyn Error + 'static>> {
 
     info!("Game window created");
 
+	let gpu = main_resource.get()
+		.window
+		.with_surface(|x| rendering::gpu_lookup::find_gpu(x))?;
+	let info = gpu.get_info();
+	info!("Using {} for rendering via {} at {}", info.name, info.backend, info.device_pci_bus_id);
+	
+	let renderer = Renderer::new(gpu).await?;
+	info!("Initialized rendering engine");
+	
+	let (renderer_resource, accessor) = LocalResource::new("Rendering engine", renderer);
+	states::renderer::set(accessor);
+	
     Ok(Resources {
         sdl_resource,
-        main_resource
+        main_resource,
+		renderer_resource
     })
 }
 

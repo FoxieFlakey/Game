@@ -110,6 +110,21 @@ impl<TheError: Error + ?Sized + 'static, Cause: Error + ?Sized + 'static> ErrorW
     }
 }
 
+impl<TheError: Error + 'static, Cause: Error + ?Sized + 'static> ErrorWithContext<TheError, Cause> {
+	pub fn map<NewError, F>(self, mapper: F) -> ErrorWithContext<NewError, Cause>
+		where NewError: Error + 'static,
+			F: FnOnce(TheError) -> NewError
+	{
+		ErrorWithContext {
+			the_error: Box::new(mapper(*self.the_error)),
+			by: self.by,
+			caused_by: self.caused_by,
+			stacktrace: self.stacktrace,
+			suppressed: self.suppressed
+		}
+	}
+}
+
 impl<TheError: Error + ?Sized + 'static, Cause: Error + ?Sized + 'static> Display for ErrorWithContext<TheError, Cause> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{}", self.the_error)?;
@@ -185,5 +200,29 @@ impl<TheError: Error + 'static, Cause: Error + 'static> From<ErrorWithContext<Th
     }
 }
 
+impl<TheError: Error + 'static> From<ErrorWithContext<TheError>> for ErrorWithContext<dyn Error + 'static> {
+    fn from(value: ErrorWithContext<TheError>) -> ErrorWithContext<dyn Error + 'static, dyn Error + 'static> {
+        ErrorWithContext {
+            the_error: value.the_error as Box<dyn Error + 'static>,
+            by: value.by,
+            caused_by: value.caused_by,
+            stacktrace: value.stacktrace,
+            suppressed: value.suppressed
+        }
+    }
+}
+
+#[track_caller]
+pub fn add_err_context<TheError>(err: TheError) -> ErrorWithContext<TheError>
+	where TheError: Error + 'static
+{
+	ErrorWithContext {
+		the_error: err.into(),
+		by: Location::caller(),
+		caused_by: None,
+		stacktrace: Backtrace::capture(),
+		suppressed: Vec::new()
+	}
+}
 
 
