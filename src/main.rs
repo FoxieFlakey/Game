@@ -2,10 +2,7 @@
 #![feature(current_thread_id)]
 
 use std::{
-    error::Error,
-    pin::Pin,
-    task::Poll,
-    time::{Duration, Instant},
+    error::Error, num::NonZero, pin::Pin, task::Poll, time::{Duration, Instant}
 };
 
 use futures::{FutureExt, poll};
@@ -136,7 +133,10 @@ async fn init() -> Result<Resources, ErrorWithContext<dyn Error + 'static>> {
         info.name, info.backend, info.device_pci_bus_id
     );
 
-    let renderer = Renderer::new(gpu).await?;
+    let mut renderer = Renderer::new(gpu).await?;
+    let (width, height) = main_resource.get().window.get_size();
+    let default = NonZero::new(10).unwrap();
+    renderer.set_output_size((NonZero::new(width).unwrap_or(default), NonZero::new(height).unwrap_or(default)));
     info!("Initialized rendering engine");
 
     let (renderer_resource, accessor) = LocalResource::new("Rendering engine", renderer);
@@ -177,7 +177,9 @@ async fn async_main(
                 start_of_render,
                 &mut do_quit,
             )
-            .await;
+            .await?;
+
+            do_render(&mut resources, prev_start_of_render, start_of_render).await?;
         }
 
         if do_quit {
@@ -210,7 +212,7 @@ async fn handle_input(
     prev_start_of_render: Instant,
     start_of_render: Instant,
     do_quit: &mut bool,
-) {
+) -> Result<(), ErrorWithContext<dyn Error + 'static>> {
     #[expect(unused)]
     let delta_time = start_of_render - prev_start_of_render;
     let main_window_id = resources.main_resource.get().window.get_id().get();
@@ -236,4 +238,29 @@ async fn handle_input(
             _ => {}
         }
     }
+
+    Ok(())
+}
+
+async fn do_render(
+    resources: &mut Resources,
+    prev_start_of_render: Instant,
+    start_of_render: Instant,
+) -> Result<(), ErrorWithContext<dyn Error + 'static>> {
+    #[expect(unused)]
+    let delta_time = start_of_render - prev_start_of_render;
+    let Some(permit) = resources
+        .main_resource
+        .get()
+        .window
+        .with_surface(|surface| resources.renderer_resource.get_mut().prep_render(surface))?
+        else {
+            return Ok(());
+        };
+
+    permit.render(|output, encoder| {
+        async {}
+    }).await;
+    
+    Ok(())
 }

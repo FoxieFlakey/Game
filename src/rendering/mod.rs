@@ -1,9 +1,9 @@
-use std::{error::Error, sync::LazyLock};
+use std::{error::Error, num::{NonZero, NonZeroU32}, sync::LazyLock};
 
 use thiserror::Error;
 
 use crate::{
-    util::{self, ErrorWithContext},
+    util::{self, ErrorWithContext, StringError},
     wgpu_async,
 };
 
@@ -32,12 +32,21 @@ pub async fn init() -> Result<(), ErrorWithContext<dyn Error + 'static>> {
 
 pub struct Renderer {
     queue: wgpu_async::AsyncQueue,
+    gpu: wgpu::Adapter,
+    config: Option<wgpu::SurfaceConfiguration>,
+    need_configure: bool,
+    output_size: (NonZeroU32, NonZeroU32)
 }
 
 #[derive(Error, Debug)]
 pub enum RendererCreateFailed {
     #[error("Cannot request device: {0}")]
     CannotRequestDevice(#[from] wgpu::RequestDeviceError),
+}
+
+pub struct RenderPermit<'a> {
+    renderer: &'a mut Renderer,
+    output_surface: wgpu::SurfaceTexture
 }
 
 impl Renderer {
@@ -53,6 +62,134 @@ impl Renderer {
 
         Ok(Self {
             queue: wgpu_async::AsyncQueue::new(device, queue),
+            gpu: gpu.clone(),
+            config: None,
+            need_configure: true,
+            output_size: (NonZero::new(10).unwrap(), NonZero::new(10).unwrap())
         })
     }
+    
+    pub fn set_output_size(&mut self, size: (NonZeroU32, NonZeroU32)) {
+        self.output_size = size;
+        self.need_configure = true;
+    }
+    
+    fn configure_surface(&mut self, surface: &wgpu::Surface<'_>) {
+        // Surface hasn't been configured
+        let device = self.queue.get_device();
+        let gpu = &self.gpu;
+        let caps = surface.get_capabilities(gpu);
+        let format = caps.formats
+            .iter()
+            .filter(|x| x.is_srgb())
+            .next()
+            .copied()
+            .unwrap_or_else(|| {
+                crate::warn!("cannot find optimal display format using suboptimal {:?} format", caps.formats[0]);
+                caps.formats[0]
+            });
+        
+        let new_config = wgpu::SurfaceConfiguration {
+            format,
+            alpha_mode: wgpu::CompositeAlphaMode::Opaque,
+            present_mode: wgpu::PresentMode::AutoNoVsync,
+            desired_maximum_frame_latency: 2,
+            width: self.output_size.0.get(),
+            height: self.output_size.1.get(),
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: vec![]
+        };
+        
+        surface.configure(device, &new_config);
+        self.config = Some(new_config);
+    }
+    
+    pub fn prep_render<'a>(&'a mut self, surface: &wgpu::Surface<'_>) -> Result<Option<RenderPermit<'a>>, ErrorWithContext<StringError>> {
+        if self.need_configure {
+            self.configure_surface(surface);
+            self.need_configure = false;
+        }
+        
+        let output_surface;
+        match surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Lost => {
+                return Err(ErrorWithContext::new("Device is lost!"))
+            }
+            
+            wgpu::CurrentSurfaceTexture::Validation => {
+                return Err(ErrorWithContext::new("Validation error occured!"))
+            }
+            
+            wgpu::CurrentSurfaceTexture::Success(texture) => {
+                output_surface = texture;
+            }
+            
+            wgpu::CurrentSurfaceTexture::Suboptimal(texture) => {
+                self.need_configure = true;
+                output_surface = texture;
+            }
+            
+            wgpu::CurrentSurfaceTexture::Outdated => {
+                self.configure_surface(surface);
+                return Ok(None);
+            }
+            
+            wgpu::CurrentSurfaceTexture::Timeout |
+            wgpu::CurrentSurfaceTexture::Occluded => {
+                return Ok(None)
+            }
+        }
+        
+        Ok(Some(RenderPermit {
+            renderer: self,
+            output_surface
+        }))
+    }
 }
+
+impl RenderPermit<'_> {
+    pub async fn render<F, Fut, R>(self, render_code: F) -> R
+        where F: FnOnce(&wgpu::TextureView, &mut wgpu::CommandEncoder) -> Fut,
+            Fut: Future<Output = R>
+    {
+        let output = self.output_surface.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        clear_background(&output, &self.renderer.queue).await;
+        
+        let mut encoder = self.renderer.queue.get_device().create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Main render code")
+        });
+        
+        let ret = render_code(&output, &mut encoder).await;
+        self.renderer.queue.submit(std::iter::once(encoder.finish())).await;
+        self.output_surface.present();
+        ret
+    }
+}
+
+async fn clear_background(output: &wgpu::TextureView, queue: &wgpu_async::AsyncQueue) {
+    let mut encoder = queue.get_device().create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("Clear background encoder")
+    });
+    
+    encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        label: Some("Clear background"),
+        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+            view: output,
+            resolve_target: None,
+            depth_slice: None,
+            ops: wgpu::Operations {
+                load: wgpu::LoadOp::Clear(wgpu::Color {
+                    r: 0.97,
+                    g: 0.63,
+                    b: 0.27,
+                    a: 1.0
+                }),
+                store: wgpu::StoreOp::Store
+            }
+        })],
+        ..Default::default()
+    });
+    
+    queue.submit(std::iter::once(encoder.finish())).await;
+}
+

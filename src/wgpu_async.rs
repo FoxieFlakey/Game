@@ -20,6 +20,10 @@ impl AsyncQueue {
     pub fn new(device: Device, queue: Queue) -> Self {
         Self { device, queue }
     }
+    
+    pub fn get_device(&self) -> &Device {
+        &self.device
+    }
 
     pub async fn submit<I: IntoIterator<Item = CommandBuffer>>(&self, command_buffers: I) {
         let submission_id = self.queue.submit(command_buffers);
