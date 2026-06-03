@@ -168,7 +168,7 @@ impl<T> LocalResource<T> {
     pub async fn poll_loop(&mut self) {
         loop {
             let Some(req) = self.request_receiver.recv().await else {
-                return
+                return;
             };
 
             // SAFETY: Self being !Send and !Sync ensures that that reference to the data

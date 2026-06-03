@@ -1,21 +1,28 @@
 #![feature(unsafe_cell_access)]
 #![feature(current_thread_id)]
 
-use std::{error::Error, pin::Pin, task::Poll, time::{Duration, Instant}};
+use std::{
+    error::Error,
+    pin::Pin,
+    task::Poll,
+    time::{Duration, Instant},
+};
 
 use futures::{FutureExt, poll};
 
-use crate::{local_resource::LocalResource, rendering::Renderer, util::ErrorWithContext, window::Window};
+use crate::{
+    local_resource::LocalResource, rendering::Renderer, util::ErrorWithContext, window::Window,
+};
 
+mod fail_safe;
 mod local_resource;
 mod logging;
-mod runtimes;
 mod rendering;
-mod util;
-mod window;
+mod runtimes;
 mod states;
-mod fail_safe;
+mod util;
 mod wgpu_async;
+mod window;
 
 fn main() {
     logging::init();
@@ -24,16 +31,15 @@ fn main() {
         return;
     }
     crate::info!("Hello, world!");
-    
+
     match tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
     {
         Ok(x) => {
             runtimes::main::set(x);
-            let res = runtimes::main::get().block_on(fail_safe::fail_safe_guard(|x| {
-                Box::pin(async_main(x))
-            }));
+            let res = runtimes::main::get()
+                .block_on(fail_safe::fail_safe_guard(|x| Box::pin(async_main(x))));
 
             if let Err(e) = res {
                 crate::fatal!("Cannot run game: {e}");
@@ -49,21 +55,21 @@ fn main() {
 }
 
 pub struct SdlState {
-  sdl: sdl3::Sdl,
-  audio: sdl3::AudioSubsystem,
-  video: sdl3::VideoSubsystem,
-  event: sdl3::EventSubsystem,
-  event_pump: sdl3::EventPump
+    sdl: sdl3::Sdl,
+    audio: sdl3::AudioSubsystem,
+    video: sdl3::VideoSubsystem,
+    event: sdl3::EventSubsystem,
+    event_pump: sdl3::EventPump,
 }
 
 pub struct MainState {
-    window: Window
+    window: Window,
 }
 
 struct Resources {
     sdl_resource: LocalResource<SdlState>,
     main_resource: LocalResource<MainState>,
-	renderer_resource: LocalResource<Renderer>
+    renderer_resource: LocalResource<Renderer>,
 }
 
 impl Resources {
@@ -71,9 +77,9 @@ impl Resources {
         tokio::join!(
             self.sdl_resource.poll_loop(),
             self.main_resource.poll_loop(),
-			self.renderer_resource.poll_loop(),
+            self.renderer_resource.poll_loop(),
         );
-        
+
         panic!("Something horribly gone wrong, poll loop for resources intended to never finishes");
     }
 }
@@ -82,53 +88,64 @@ async fn init() -> Result<Resources, ErrorWithContext<dyn Error + 'static>> {
     rendering::init().await?;
 
     let sdl = sdl3::init()
-            .map_err(|x| ErrorWithContext::with_message("Cannot initialize SDL3", Box::new(x)))?;
-    let (sdl_resource, accessor) = LocalResource::new("SDL subsystems", SdlState {
-        event: sdl.event()
-            .map_err(|x| ErrorWithContext::with_message("Cannot initialize events subsystem", Box::new(x)))?,
-        video: sdl.video()
-            .map_err(|x| ErrorWithContext::with_message("Cannot initialize video subsystem", Box::new(x)))?,
-        audio: sdl.audio()
-            .map_err(|x| ErrorWithContext::with_message("Cannot initialize audio subsystem", Box::new(x)))?,
-        event_pump: sdl.event_pump()
-            .map_err(|x| ErrorWithContext::with_message("Cannot get SDL event pump", Box::new(x)))?,
-        sdl
-    });
+        .map_err(|x| ErrorWithContext::with_message("Cannot initialize SDL3", Box::new(x)))?;
+    let (sdl_resource, accessor) = LocalResource::new(
+        "SDL subsystems",
+        SdlState {
+            event: sdl.event().map_err(|x| {
+                ErrorWithContext::with_message("Cannot initialize events subsystem", Box::new(x))
+            })?,
+            video: sdl.video().map_err(|x| {
+                ErrorWithContext::with_message("Cannot initialize video subsystem", Box::new(x))
+            })?,
+            audio: sdl.audio().map_err(|x| {
+                ErrorWithContext::with_message("Cannot initialize audio subsystem", Box::new(x))
+            })?,
+            event_pump: sdl.event_pump().map_err(|x| {
+                ErrorWithContext::with_message("Cannot get SDL event pump", Box::new(x))
+            })?,
+            sdl,
+        },
+    );
     states::sdl::set(accessor);
 
     info!("SDL3 initialized");
 
     let window = Window::new(
-        sdl_resource.get()
+        sdl_resource
+            .get()
             .video
             .window("Game UwU", 1280, 720)
             .vulkan()
-            .position_centered()
-    ).map_err(|x| x.wrap("Failed to create window"))?;
+            .position_centered(),
+    )
+    .map_err(|x| x.wrap("Failed to create window"))?;
 
-    let (main_resource, accessor) = LocalResource::new("Main state", MainState {
-        window
-    });
+    let (main_resource, accessor) = LocalResource::new("Main state", MainState { window });
     states::main::set(accessor);
 
     info!("Game window created");
 
-	let gpu = main_resource.get()
-		.window
-		.with_surface(|x| rendering::gpu_lookup::find_gpu(x))?;
-	let info = gpu.get_info();
-	info!("Using {} for rendering via {} at {}", info.name, info.backend, info.device_pci_bus_id);
-	
-	let renderer = Renderer::new(gpu).await?;
-	info!("Initialized rendering engine");
-	
-	let (renderer_resource, accessor) = LocalResource::new("Rendering engine", renderer);
-	states::renderer::set(accessor);
-	
+    let gpu = main_resource
+        .get()
+        .window
+        .with_surface(|x| rendering::gpu_lookup::find_gpu(x))?;
+    let info = gpu.get_info();
+    info!(
+        "Using {} for rendering via {} at {}",
+        info.name, info.backend, info.device_pci_bus_id
+    );
+
+    let renderer = Renderer::new(gpu).await?;
+    info!("Initialized rendering engine");
+
+    let (renderer_resource, accessor) = LocalResource::new("Rendering engine", renderer);
+    states::renderer::set(accessor);
+
     Ok(Resources {
         sdl_resource,
         main_resource,
-		renderer_resource
+        renderer_resource,
     })
 }
 
@@ -136,7 +153,7 @@ async fn async_main(
     // Future is ready when a quit request received
     // from other places (other than SDL3) depends on
     // host system
-    quit_request_receiver: impl Fn() -> Pin<Box<dyn Future<Output = ()>>>
+    quit_request_receiver: impl Fn() -> Pin<Box<dyn Future<Output = ()>>>,
 ) -> Result<(), ErrorWithContext<dyn Error + 'static>> {
     runtimes::init();
     let mut resources = init().await?;
@@ -154,7 +171,13 @@ async fn async_main(
             // Quit trigger from somewhere else
             do_quit = true;
         } else {
-            handle_input(&mut resources, prev_start_of_render, start_of_render, &mut do_quit).await;
+            handle_input(
+                &mut resources,
+                prev_start_of_render,
+                start_of_render,
+                &mut do_quit,
+            )
+            .await;
         }
 
         if do_quit {
@@ -163,7 +186,7 @@ async fn async_main(
 
         let end_of_render = Instant::now();
         let render_time = end_of_render - start_of_render;
-        
+
         // Lets poll for new request to access main resources
         // and wait till deadline passed
         let sleep_deadline = end_of_render + target_frame_time.saturating_sub(render_time);
@@ -182,11 +205,16 @@ async fn async_main(
     Ok(())
 }
 
-async fn handle_input(resources: &mut Resources, prev_start_of_render: Instant, start_of_render: Instant, do_quit: &mut bool) {
+async fn handle_input(
+    resources: &mut Resources,
+    prev_start_of_render: Instant,
+    start_of_render: Instant,
+    do_quit: &mut bool,
+) {
     #[expect(unused)]
     let delta_time = start_of_render - prev_start_of_render;
     let main_window_id = resources.main_resource.get().window.get_id().get();
-     
+
     // Render and input handle code here
     for event in resources.sdl_resource.get_mut().event_pump.poll_iter() {
         tokio::task::yield_now().await;
@@ -194,7 +222,11 @@ async fn handle_input(resources: &mut Resources, prev_start_of_render: Instant, 
             sdl3::event::Event::Quit { .. } => {
                 *do_quit = true;
             }
-            sdl3::event::Event::Window { window_id, win_event: sdl3::event::WindowEvent::CloseRequested, .. } => {
+            sdl3::event::Event::Window {
+                window_id,
+                win_event: sdl3::event::WindowEvent::CloseRequested,
+                ..
+            } => {
                 if window_id != main_window_id {
                     continue;
                 }
@@ -205,8 +237,3 @@ async fn handle_input(resources: &mut Resources, prev_start_of_render: Instant, 
         }
     }
 }
-
-
-
-
-

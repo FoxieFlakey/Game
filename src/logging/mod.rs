@@ -146,36 +146,17 @@ pub fn init() {
 
             for line in record.args().to_string().lines() {
                 match record.level() {
-                    log::Level::Error => error!(
-                        LOGGER_FROM_LOG_CRATE,
-                        "[mod {}] {}",
-                        mod_name,
-                        line
-                    ),
-                    log::Level::Warn => warn!(
-                        LOGGER_FROM_LOG_CRATE,
-                        "[mod {}] {}",
-                        mod_name,
-                        line
-                    ),
-                    log::Level::Info => info!(
-                        LOGGER_FROM_LOG_CRATE,
-                        "[mod {}] {}",
-                        mod_name,
-                        line
-                    ),
-                    log::Level::Debug => debug!(
-                        LOGGER_FROM_LOG_CRATE,
-                        "[mod {}] {}",
-                        mod_name,
-                        line
-                    ),
-                    log::Level::Trace => trace!(
-                        LOGGER_FROM_LOG_CRATE,
-                        "[mod {}] {}",
-                        mod_name,
-                        line
-                    )
+                    log::Level::Error => {
+                        error!(LOGGER_FROM_LOG_CRATE, "[mod {}] {}", mod_name, line)
+                    }
+                    log::Level::Warn => warn!(LOGGER_FROM_LOG_CRATE, "[mod {}] {}", mod_name, line),
+                    log::Level::Info => info!(LOGGER_FROM_LOG_CRATE, "[mod {}] {}", mod_name, line),
+                    log::Level::Debug => {
+                        debug!(LOGGER_FROM_LOG_CRATE, "[mod {}] {}", mod_name, line)
+                    }
+                    log::Level::Trace => {
+                        trace!(LOGGER_FROM_LOG_CRATE, "[mod {}] {}", mod_name, line)
+                    }
                 }
             }
         }

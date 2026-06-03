@@ -28,6 +28,7 @@ define_state!(sdl, crate::local_resource::Accessor<crate::SdlState>);
 define_state!(main, crate::local_resource::Accessor<crate::MainState>);
 
 // Rendering engine, only accessible from main thread
-define_state!(renderer, crate::local_resource::Accessor<crate::rendering::Renderer>);
-
-
+define_state!(
+    renderer,
+    crate::local_resource::Accessor<crate::rendering::Renderer>
+);
