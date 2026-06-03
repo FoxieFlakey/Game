@@ -8,7 +8,7 @@ use std::{
 use futures::{FutureExt, poll};
 
 use crate::{
-    local_resource::LocalResource, rendering::Renderer, util::ErrorWithContext, window::Window,
+    local_resource::LocalResource, rendering::Renderer, ui::UI, util::ErrorWithContext, window::Window
 };
 
 mod fail_safe;
@@ -20,6 +20,7 @@ mod states;
 mod util;
 mod wgpu_async;
 mod window;
+mod ui;
 
 fn main() {
     logging::init();
@@ -61,6 +62,7 @@ pub struct SdlState {
 
 pub struct MainState {
     window: Window,
+    ui: UI
 }
 
 struct Resources {
@@ -118,14 +120,9 @@ async fn init() -> Result<Resources, ErrorWithContext<dyn Error + 'static>> {
     )
     .map_err(|x| x.wrap("Failed to create window"))?;
 
-    let (main_resource, accessor) = LocalResource::new("Main state", MainState { window });
-    states::main::set(accessor);
-
     info!("Game window created");
 
-    let gpu = main_resource
-        .get()
-        .window
+    let gpu = window
         .with_surface(|x| rendering::gpu_lookup::find_gpu(x))?;
     let info = gpu.get_info();
     info!(
@@ -134,7 +131,7 @@ async fn init() -> Result<Resources, ErrorWithContext<dyn Error + 'static>> {
     );
 
     let mut renderer = Renderer::new(gpu).await?;
-    let (width, height) = main_resource.get().window.get_size();
+    let (width, height) = window.get_size();
     let default = NonZero::new(10).unwrap();
     renderer.set_output_size((NonZero::new(width).unwrap_or(default), NonZero::new(height).unwrap_or(default)));
     info!("Initialized rendering engine");
@@ -142,6 +139,12 @@ async fn init() -> Result<Resources, ErrorWithContext<dyn Error + 'static>> {
     let (renderer_resource, accessor) = LocalResource::new("Rendering engine", renderer);
     states::renderer::set(accessor);
 
+    let (main_resource, accessor) = LocalResource::new("Main state", MainState {
+        ui: UI::new(),
+        window
+    });
+    states::main::set(accessor);
+    
     Ok(Resources {
         sdl_resource,
         main_resource,
@@ -259,7 +262,10 @@ async fn do_render(
         };
 
     permit.render(|output, encoder| {
-        async {}
+        resources.main_resource
+            .get()
+            .ui
+            .render(output, encoder);
     }).await;
     
     Ok(())

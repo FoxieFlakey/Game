@@ -148,9 +148,8 @@ impl Renderer {
 }
 
 impl RenderPermit<'_> {
-    pub async fn render<F, Fut, R>(self, render_code: F) -> R
-        where F: FnOnce(&wgpu::TextureView, &mut wgpu::CommandEncoder) -> Fut,
-            Fut: Future<Output = R>
+    pub async fn render<F, R>(self, render_code: F) -> R
+        where F: FnOnce(&wgpu::TextureView, &mut wgpu::CommandEncoder) -> R,
     {
         let output = self.output_surface.texture.create_view(&wgpu::TextureViewDescriptor::default());
         clear_background(&output, &self.renderer.queue).await;
@@ -159,7 +158,7 @@ impl RenderPermit<'_> {
             label: Some("Main render code")
         });
         
-        let ret = render_code(&output, &mut encoder).await;
+        let ret = render_code(&output, &mut encoder);
         self.renderer.queue.submit(std::iter::once(encoder.finish())).await;
         self.output_surface.present();
         ret
