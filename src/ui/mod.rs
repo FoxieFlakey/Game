@@ -1,3 +1,7 @@
+use std::time::Duration;
+
+use crate::events::EventHandleResult;
+
 pub struct UI {
     
 }
@@ -8,7 +12,12 @@ impl UI {
         }
     }
     
-    pub fn render(&self, output: &wgpu::TextureView, encoder: &wgpu::CommandEncoder) {
+    pub fn handle_input(&mut self, delta_time: Duration, event: &sdl3::event::Event) -> EventHandleResult {
+        
+        EventHandleResult::Consumed
+    }
+    
+    pub fn render(&self, delta_time: Duration, output: &wgpu::TextureView, encoder: &wgpu::CommandEncoder) {
         
     }
 }

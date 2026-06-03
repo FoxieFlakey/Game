@@ -11,6 +11,7 @@ use crate::{
     local_resource::LocalResource, rendering::Renderer, ui::UI, util::ErrorWithContext, window::Window
 };
 
+mod events;
 mod fail_safe;
 mod local_resource;
 mod logging;
@@ -216,7 +217,6 @@ async fn handle_input(
     start_of_render: Instant,
     do_quit: &mut bool,
 ) -> Result<(), ErrorWithContext<dyn Error + 'static>> {
-    #[expect(unused)]
     let delta_time = start_of_render - prev_start_of_render;
     let main_window_id = resources.main_resource.get().window.get_id().get();
 
@@ -238,7 +238,9 @@ async fn handle_input(
                 *do_quit = true;
             }
 
-            _ => {}
+            _ => {
+                resources.main_resource.get_mut().ui.handle_input(delta_time, &event);
+            }
         }
     }
 
@@ -250,7 +252,6 @@ async fn do_render(
     prev_start_of_render: Instant,
     start_of_render: Instant,
 ) -> Result<(), ErrorWithContext<dyn Error + 'static>> {
-    #[expect(unused)]
     let delta_time = start_of_render - prev_start_of_render;
     let Some(permit) = resources
         .main_resource
@@ -265,7 +266,7 @@ async fn do_render(
         resources.main_resource
             .get()
             .ui
-            .render(output, encoder);
+            .render(delta_time, output, encoder);
     }).await;
     
     Ok(())
