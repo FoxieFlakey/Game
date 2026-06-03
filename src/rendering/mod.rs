@@ -152,20 +152,23 @@ impl RenderPermit<'_> {
         where F: FnOnce(&wgpu::TextureView, &mut wgpu::CommandEncoder) -> R,
     {
         let output = self.output_surface.texture.create_view(&wgpu::TextureViewDescriptor::default());
-        clear_background(&output, &self.renderer.queue).await;
+        let clear_command = clear_background(&output, &self.renderer.queue);
         
         let mut encoder = self.renderer.queue.get_device().create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Main render code")
         });
         
         let ret = render_code(&output, &mut encoder);
-        self.renderer.queue.submit(std::iter::once(encoder.finish())).await;
+        self.renderer.queue.submit([
+            clear_command,
+            encoder.finish()
+        ]).await;
         self.output_surface.present();
         ret
     }
 }
 
-async fn clear_background(output: &wgpu::TextureView, queue: &wgpu_async::AsyncQueue) {
+fn clear_background(output: &wgpu::TextureView, queue: &wgpu_async::AsyncQueue) -> wgpu::CommandBuffer {
     let mut encoder = queue.get_device().create_command_encoder(&wgpu::CommandEncoderDescriptor {
         label: Some("Clear background encoder")
     });
@@ -189,6 +192,6 @@ async fn clear_background(output: &wgpu::TextureView, queue: &wgpu_async::AsyncQ
         ..Default::default()
     });
     
-    queue.submit(std::iter::once(encoder.finish())).await;
+    encoder.finish()
 }
 
