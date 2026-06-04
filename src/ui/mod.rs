@@ -2,6 +2,8 @@ use std::time::Duration;
 
 use crate::events::EventHandleResult;
 
+pub mod component;
+
 pub struct UI {
     
 }
