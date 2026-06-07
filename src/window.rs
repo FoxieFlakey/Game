@@ -1,7 +1,6 @@
 use std::num::NonZero;
 
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
-use thiserror::Error;
 
 use crate::{
     rendering,
@@ -16,7 +15,7 @@ pub struct Window {
     win: sdl3::video::Window,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum CreateWindowError {
     #[error("Create window with SDL3 failed: {0}")]
     Create(sdl3::video::WindowBuildError),

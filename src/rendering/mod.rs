@@ -1,7 +1,5 @@
 use std::{error::Error, num::{NonZero, NonZeroU32}, sync::LazyLock};
 
-use thiserror::Error;
-
 use crate::{
     util::{StringError, error::{CustomError, CustomErrorExt}},
     wgpu_async,
@@ -38,7 +36,7 @@ pub struct Renderer {
     output_size: (NonZeroU32, NonZeroU32)
 }
 
-#[derive(Error, Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum RendererCreateFailed {
     #[error("Cannot request device: {0}")]
     CannotRequestDevice(#[from] wgpu::RequestDeviceError),
