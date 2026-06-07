@@ -11,7 +11,7 @@ use tokio::{
     sync::Notify,
 };
 
-use crate::util::{ErrorWithContext, StringError, sig_safe};
+use crate::util::{StringError, error::{CustomError, CustomErrorExt}, sig_safe};
 
 // Maximum of interrupts before hard quit triggered
 const WARN_INTERRUPT_COUNT: u32 = 3;
@@ -66,26 +66,18 @@ fn handle_sig_hardquit() {
     }
 }
 
-pub fn init() -> Result<(), ErrorWithContext<StringError>> {
+pub fn init() -> Result<(), CustomError<Box<dyn Error>>> {
     // Installing quit handling signal early
     // SAFETY: The handler is only calls async-signal-safe functions and does not panics
     unsafe { signal_hook::low_level::register(signal_hook::consts::SIGINT, handle_sig_hardquit) }
-        .map_err(|e| {
-        ErrorWithContext::with_message(
-            "Cannot install SIGINT handler",
-            Box::new(e) as Box<dyn Error>,
-        )
-    })?;
+        .map_err(|e| e.into_custom_err())
+        .map_err(CustomError::into_boxed)?;
 
     // SAFETY: The handler is only calls async-signal-safe functions and does not panics
     unsafe { signal_hook::low_level::register(signal_hook::consts::SIGTERM, handle_sig_term) }
-        .map_err(|e| {
-            ErrorWithContext::with_message(
-                "Cannot install SIGTERM handler",
-                Box::new(e) as Box<dyn Error>,
-            )
-        })?;
-
+        .map_err(|e| e.into_custom_err())
+        .map_err(CustomError::into_boxed)?;
+    
     Ok(())
 }
 
@@ -93,14 +85,12 @@ pub async fn fail_safe_guard(
     main: impl Fn(
         Box<dyn Fn() -> Pin<Box<dyn Future<Output = ()>>>>,
     )
-        -> Pin<Box<dyn Future<Output = Result<(), ErrorWithContext<dyn Error + 'static>>>>>,
-) -> Result<(), ErrorWithContext<dyn Error + 'static>> {
-    let mut sigint = signal(SignalKind::interrupt()).map_err(|e| {
-        ErrorWithContext::with_message("Cannot install SIGINT handler", Box::new(e))
-    })?;
-    let mut sigterm = signal(SignalKind::terminate()).map_err(|e| {
-        ErrorWithContext::with_message("Cannot install SIGTERM handler", Box::new(e))
-    })?;
+        -> Pin<Box<dyn Future<Output = Result<(), Box<CustomError<dyn Error + 'static>>>>>>,
+) -> Result<(), Box<CustomError<dyn Error + 'static>>> {
+    let mut sigint = signal(SignalKind::interrupt())
+        .map_err(|x| x.context("Installing SIGINT handler"))?;
+    let mut sigterm = signal(SignalKind::terminate())
+        .map_err(|x| x.context("Installing SIGTERM handler"))?;
     let quit_notifier = Rc::new(Notify::new());
     let quit_notifier2 = quit_notifier.clone();
 
@@ -158,7 +148,5 @@ pub async fn fail_safe_guard(
         }
     }
 
-    Err(ErrorWithContext::new_err(StringError::from(
-        "Hard quit triggered".to_string(),
-    )))
+    Err(StringError::new("Hard quit triggered").into_custom_err().into())
 }

@@ -1,13 +1,13 @@
 use std::fmt;
 
-pub struct IdentedWriter<'ident_string, 'writer, Writer: fmt::Write> {
+pub struct IdentedWriter<'ident_string, 'writer, Writer: fmt::Write + ?Sized> {
     indent: &'ident_string str,
     depth: u32,
     parent_writer: &'writer mut Writer,
     needs_indent: bool,
 }
 
-impl<Writer: fmt::Write> fmt::Write for IdentedWriter<'_, '_, Writer> {
+impl<Writer: fmt::Write + ?Sized> fmt::Write for IdentedWriter<'_, '_, Writer> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         // AI generated portion by Gemini
         // Split the input string into lines, preserving trailing empty sections
@@ -43,7 +43,7 @@ impl<Writer: fmt::Write> fmt::Write for IdentedWriter<'_, '_, Writer> {
     }
 }
 
-impl<'ident_string, 'writer, Writer: fmt::Write> IdentedWriter<'ident_string, 'writer, Writer> {
+impl<'ident_string, 'writer, Writer: fmt::Write + ?Sized> IdentedWriter<'ident_string, 'writer, Writer> {
     pub fn new(
         depth: u32,
         indent: &'ident_string str,

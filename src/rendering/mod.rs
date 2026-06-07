@@ -3,7 +3,7 @@ use std::{error::Error, num::{NonZero, NonZeroU32}, sync::LazyLock};
 use thiserror::Error;
 
 use crate::{
-    util::{self, ErrorWithContext, StringError},
+    util::{StringError, error::{CustomError, CustomErrorExt}},
     wgpu_async,
 };
 
@@ -24,7 +24,7 @@ pub static WGPU: LazyLock<wgpu::Instance> = LazyLock::new(|| {
 
 // Init global stuffs about rendering
 // that is not per renderer
-pub async fn init() -> Result<(), ErrorWithContext<dyn Error + 'static>> {
+pub async fn init() -> Result<(), Box<CustomError<dyn Error + 'static>>> {
     LazyLock::force(&WGPU);
     gpu_lookup::init().await?;
     Ok(())
@@ -50,7 +50,7 @@ pub struct RenderPermit<'a> {
 }
 
 impl Renderer {
-    pub async fn new(gpu: &wgpu::Adapter) -> Result<Self, ErrorWithContext<RendererCreateFailed>> {
+    pub async fn new(gpu: &wgpu::Adapter) -> Result<Self, CustomError<RendererCreateFailed>> {
         let desc = wgpu::DeviceDescriptor {
             ..Default::default()
         };
@@ -58,7 +58,8 @@ impl Renderer {
         let (device, queue) = gpu
             .request_device(&desc)
             .await
-            .map_err(|e| util::add_err_context(RendererCreateFailed::from(e)))?;
+            .map_err(|x| x.into_custom_err())
+            .map_err(CustomError::convert)?;
 
         Ok(Self {
             queue: wgpu_async::AsyncQueue::new(device, queue),
@@ -104,7 +105,7 @@ impl Renderer {
         self.config = Some(new_config);
     }
     
-    pub fn prep_render<'a>(&'a mut self, surface: &wgpu::Surface<'_>) -> Result<Option<RenderPermit<'a>>, ErrorWithContext<StringError>> {
+    pub fn prep_render<'a>(&'a mut self, surface: &wgpu::Surface<'_>) -> Result<Option<RenderPermit<'a>>, CustomError<StringError>> {
         if self.need_configure {
             self.configure_surface(surface);
             self.need_configure = false;
@@ -113,11 +114,11 @@ impl Renderer {
         let output_surface;
         match surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Lost => {
-                return Err(ErrorWithContext::new("Device is lost!"))
+                return Err(StringError::new("Device is lost!").into_custom_err())
             }
             
             wgpu::CurrentSurfaceTexture::Validation => {
-                return Err(ErrorWithContext::new("Validation error occured!"))
+                return Err(StringError::new("Validation error occured!").into_custom_err())
             }
             
             wgpu::CurrentSurfaceTexture::Success(texture) => {

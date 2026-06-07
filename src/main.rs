@@ -1,5 +1,6 @@
 #![feature(unsafe_cell_access)]
 #![feature(current_thread_id)]
+#![feature(min_specialization)]
 
 use std::{
     error::Error, num::NonZero, pin::Pin, task::Poll, time::{Duration, Instant}
@@ -8,7 +9,7 @@ use std::{
 use futures::{FutureExt, poll};
 
 use crate::{
-    local_resource::LocalResource, rendering::Renderer, ui::UI, util::ErrorWithContext, window::Window
+    local_resource::LocalResource, rendering::Renderer, ui::UI, util::error::{CustomError, CustomErrorExt, Printable}, window::Window
 };
 
 mod events;
@@ -26,7 +27,7 @@ mod ui;
 fn main() {
     logging::init();
     if let Err(e) = fail_safe::init() {
-        fatal!("Cannot initialize fail safe: {e}");
+        fatal!("Cannot initialize fail safe: {}", Printable(&e));
         return;
     }
     crate::info!("Hello, world!");
@@ -84,26 +85,22 @@ impl Resources {
     }
 }
 
-async fn init() -> Result<Resources, ErrorWithContext<dyn Error + 'static>> {
+async fn init() -> Result<Resources, Box<CustomError<dyn Error + 'static>>> {
     rendering::init().await?;
 
     let sdl = sdl3::init()
-        .map_err(|x| ErrorWithContext::with_message("Cannot initialize SDL3", Box::new(x)))?;
+        .map_err(|x| x.context("Initializing SDL library"))?;
     let (sdl_resource, accessor) = LocalResource::new(
         "SDL subsystems",
         SdlState {
-            event: sdl.event().map_err(|x| {
-                ErrorWithContext::with_message("Cannot initialize events subsystem", Box::new(x))
-            })?,
-            video: sdl.video().map_err(|x| {
-                ErrorWithContext::with_message("Cannot initialize video subsystem", Box::new(x))
-            })?,
-            audio: sdl.audio().map_err(|x| {
-                ErrorWithContext::with_message("Cannot initialize audio subsystem", Box::new(x))
-            })?,
-            event_pump: sdl.event_pump().map_err(|x| {
-                ErrorWithContext::with_message("Cannot get SDL event pump", Box::new(x))
-            })?,
+            event: sdl.event()
+                .map_err(|x| x.context("Initializing event subsystem"))?,
+            video: sdl.video()
+                .map_err(|x| x.context("Initializing video subsystem"))?,
+            audio: sdl.audio()
+                .map_err(|x| x.context("Initializing audio subsystem"))?,
+            event_pump: sdl.event_pump()
+                .map_err(|x| x.context("Creating event pump"))?,
             sdl,
         },
     );
@@ -119,7 +116,7 @@ async fn init() -> Result<Resources, ErrorWithContext<dyn Error + 'static>> {
             .vulkan()
             .position_centered(),
     )
-    .map_err(|x| x.wrap("Failed to create window"))?;
+    .map_err(|x| x.context("Creating main game window"))?;
 
     info!("Game window created");
 
@@ -158,7 +155,7 @@ async fn async_main(
     // from other places (other than SDL3) depends on
     // host system
     quit_request_receiver: impl Fn() -> Pin<Box<dyn Future<Output = ()>>>,
-) -> Result<(), ErrorWithContext<dyn Error + 'static>> {
+) -> Result<(), Box<CustomError<dyn Error + 'static>>> {
     runtimes::init();
     let mut resources = init().await?;
 
@@ -216,7 +213,7 @@ async fn handle_input(
     prev_start_of_render: Instant,
     start_of_render: Instant,
     do_quit: &mut bool,
-) -> Result<(), ErrorWithContext<dyn Error + 'static>> {
+) -> Result<(), Box<CustomError<dyn Error + 'static>>> {
     let delta_time = start_of_render - prev_start_of_render;
     let main_window_id = resources.main_resource.get().window.get_id().get();
 
@@ -251,7 +248,7 @@ async fn do_render(
     resources: &mut Resources,
     prev_start_of_render: Instant,
     start_of_render: Instant,
-) -> Result<(), ErrorWithContext<dyn Error + 'static>> {
+) -> Result<(), Box<CustomError<dyn Error + 'static>>> {
     let delta_time = start_of_render - prev_start_of_render;
     let Some(permit) = resources
         .main_resource

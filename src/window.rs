@@ -5,7 +5,7 @@ use thiserror::Error;
 
 use crate::{
     rendering,
-    util::{ErrorWithContext, StringError},
+    util::error::{CustomError, CustomErrorExt},
 };
 
 pub struct Window {
@@ -19,9 +19,9 @@ pub struct Window {
 #[derive(Debug, Error)]
 pub enum CreateWindowError {
     #[error("Create window with SDL3 failed: {0}")]
-    Create(#[from] sdl3::video::WindowBuildError),
+    Create(sdl3::video::WindowBuildError),
     #[error("Creating wgpu surface failed: {0}")]
-    CreateWgpuSurface(#[from] wgpu::CreateSurfaceError),
+    CreateWgpuSurface(wgpu::CreateSurfaceError),
     #[error("Cant retrieve window handle: {0}")]
     GetWindowHandle(raw_window_handle::HandleError),
     #[error("Cant retrieve display handle: {0}")]
@@ -31,13 +31,9 @@ pub enum CreateWindowError {
 impl Window {
     pub fn new(
         builder: &sdl3::video::WindowBuilder,
-    ) -> Result<Self, ErrorWithContext<StringError, CreateWindowError>> {
-        let win = builder.build().map_err(|e| {
-            ErrorWithContext::with_message(
-                "Cannot create window",
-                CreateWindowError::from(e).into(),
-            )
-        })?;
+    ) -> Result<Self, CustomError<CreateWindowError>> {
+        let win = builder.build()
+            .map_err(|e| CreateWindowError::Create(e).into_custom_err())?;
 
         Ok(Window {
             surface: unsafe {
@@ -48,28 +44,22 @@ impl Window {
                         raw_display_handle: Some(
                             win.display_handle()
                                 .map_err(|e| {
-                                    ErrorWithContext::with_message(
-                                        "Cannot create window",
-                                        CreateWindowError::GetDisplayHandle(e).into(),
-                                    )
+                                    CreateWindowError::GetDisplayHandle(e)
+                                        .into_custom_err()
                                 })?
                                 .as_raw(),
                         ),
                         raw_window_handle: win
                             .window_handle()
                             .map_err(|e| {
-                                ErrorWithContext::with_message(
-                                    "Cannot create window",
-                                    CreateWindowError::GetWindowHandle(e).into(),
-                                )
+                                CreateWindowError::GetWindowHandle(e)
+                                    .into_custom_err()
                             })?
                             .as_raw(),
                     })
                     .map_err(|e| {
-                        ErrorWithContext::with_message(
-                            "Cannot create window",
-                            CreateWindowError::from(e).into(),
-                        )
+                        CreateWindowError::CreateWgpuSurface(e)
+                            .into_custom_err()
                     })?
             },
             win,
@@ -110,7 +100,7 @@ impl Window {
     pub fn set_visibility(
         &mut self,
         is_visible: bool,
-    ) -> Result<(), ErrorWithContext<StringError, sdl3::Error>> {
+    ) -> Result<(), CustomError<sdl3::Error>> {
         let result;
         if is_visible {
             result = self.win.show();
@@ -119,10 +109,7 @@ impl Window {
         }
 
         if !result {
-            Err(ErrorWithContext::with_message(
-                "Cannot change visibility of window",
-                sdl3::get_error().into(),
-            ))
+            Err(sdl3::get_error().into_custom_err())
         } else {
             Ok(())
         }
