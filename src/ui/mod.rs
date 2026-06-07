@@ -4,24 +4,26 @@ use crate::events::EventHandleResult;
 
 pub mod component;
 
-pub struct UI {
-    
-}
+pub struct UI {}
 
 impl UI {
     pub fn new() -> Self {
-        Self {
-        }
+        Self {}
     }
-    
-    pub fn handle_input(&mut self, delta_time: Duration, event: &sdl3::event::Event) -> EventHandleResult {
-        
+
+    pub fn handle_input(
+        &mut self,
+        delta_time: Duration,
+        event: &sdl3::event::Event,
+    ) -> EventHandleResult {
         EventHandleResult::Consumed
     }
-    
-    pub fn render(&self, delta_time: Duration, output: &wgpu::TextureView, encoder: &wgpu::CommandEncoder) {
-        
+
+    pub fn render(
+        &self,
+        delta_time: Duration,
+        output: &wgpu::TextureView,
+        encoder: &wgpu::CommandEncoder,
+    ) {
     }
 }
-
-

@@ -11,7 +11,11 @@ use tokio::{
     sync::Notify,
 };
 
-use crate::util::{StringError, error::{CustomError, CustomErrorExt}, sig_safe};
+use crate::util::{
+    StringError,
+    error::{CustomError, CustomErrorExt},
+    sig_safe,
+};
 
 // Maximum of interrupts before hard quit triggered
 const WARN_INTERRUPT_COUNT: u32 = 3;
@@ -77,7 +81,7 @@ pub fn init() -> Result<(), CustomError<Box<dyn Error>>> {
     unsafe { signal_hook::low_level::register(signal_hook::consts::SIGTERM, handle_sig_term) }
         .map_err(|e| e.into_custom_err())
         .map_err(CustomError::into_boxed)?;
-    
+
     Ok(())
 }
 
@@ -87,10 +91,10 @@ pub async fn fail_safe_guard(
     )
         -> Pin<Box<dyn Future<Output = Result<(), Box<CustomError<dyn Error + 'static>>>>>>,
 ) -> Result<(), Box<CustomError<dyn Error + 'static>>> {
-    let mut sigint = signal(SignalKind::interrupt())
-        .map_err(|x| x.context("Installing SIGINT handler"))?;
-    let mut sigterm = signal(SignalKind::terminate())
-        .map_err(|x| x.context("Installing SIGTERM handler"))?;
+    let mut sigint =
+        signal(SignalKind::interrupt()).map_err(|x| x.context("Installing SIGINT handler"))?;
+    let mut sigterm =
+        signal(SignalKind::terminate()).map_err(|x| x.context("Installing SIGTERM handler"))?;
     let quit_notifier = Rc::new(Notify::new());
     let quit_notifier2 = quit_notifier.clone();
 
@@ -148,5 +152,7 @@ pub async fn fail_safe_guard(
         }
     }
 
-    Err(StringError::new("Hard quit triggered").into_custom_err().into())
+    Err(StringError::new("Hard quit triggered")
+        .into_custom_err()
+        .into())
 }

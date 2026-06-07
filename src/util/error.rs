@@ -16,16 +16,16 @@ pub struct CustomError<T: ?Sized + 'static> {
     // Context of what attempting to be done
     context: Option<String>,
     stacktrace: Backtrace,
-    
+
     // Location where error is constructed
     // which is almost all of time where
     // its occured
     by: &'static Location<'static>,
-    
+
     // Errors that occured while handling
     // the primary error.
     suppressed: Vec<Box<CustomError<Box<dyn Error>>>>,
-    err: T
+    err: T,
 }
 
 impl<T: Display + ?Sized> Display for CustomError<T> {
@@ -53,7 +53,7 @@ impl<T: Error + Sized> CustomErrorExt for T {
             context: Some(msg.into()),
             err: self,
             stacktrace: Backtrace::capture(),
-            suppressed: Vec::new()
+            suppressed: Vec::new(),
         }
     }
 
@@ -64,7 +64,7 @@ impl<T: Error + Sized> CustomErrorExt for T {
             context: None,
             err: self,
             stacktrace: Backtrace::capture(),
-            suppressed: Vec::new()
+            suppressed: Vec::new(),
         }
     }
 }
@@ -76,17 +76,17 @@ impl<'a, E: Sized + Error + 'a> CustomError<E> {
             context: self.context,
             err: self.err.into(),
             stacktrace: self.stacktrace,
-            suppressed: self.suppressed
+            suppressed: self.suppressed,
         }
     }
-    
+
     pub fn into_boxed(self) -> CustomError<Box<dyn Error + 'a>> {
         CustomError {
             err: Box::new(self.err),
             by: self.by,
             context: self.context,
             stacktrace: self.stacktrace,
-            suppressed: self.suppressed
+            suppressed: self.suppressed,
         }
     }
 }
@@ -99,7 +99,7 @@ impl<E: Sized + Error> From<E> for CustomError<E> {
             context: None,
             err: value,
             stacktrace: Backtrace::capture(),
-            suppressed: Vec::new()
+            suppressed: Vec::new(),
         }
     }
 }
@@ -114,14 +114,14 @@ impl Display for Printable<'_> {
         } else {
             writeln!(writer, "No context provided")?;
         }
-        
+
         if matches!(self.0.stacktrace.status(), BacktraceStatus::Captured) {
             writeln!(writer, "Stack trace: ")?;
             writeln!(writer, "{}", self.0.stacktrace)?;
         } else {
             writeln!(writer, "Stack trace unavailable")?;
         }
-        
+
         if self.0.suppressed.len() > 0 {
             writeln!(writer, "Suppressed errors:")?;
             for (idx, e) in self.0.suppressed.iter().enumerate() {
@@ -129,15 +129,13 @@ impl Display for Printable<'_> {
                 writeln!(&mut writer, "[{idx}] Suppressed error: {}", &e.err)?;
             }
         }
-        
+
         Ok(())
     }
 }
 
 impl<E: Sized + Error> From<CustomError<E>> for Box<CustomError<dyn Error>> {
     fn from(value: CustomError<E>) -> Self {
-        Box::new(CustomError {
-            ..value
-        })
+        Box::new(CustomError { ..value })
     }
 }

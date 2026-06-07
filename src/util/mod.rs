@@ -1,5 +1,5 @@
-pub mod sig_safe;
 pub mod error;
+pub mod sig_safe;
 
 mod idented_writer;
 
@@ -8,13 +8,13 @@ pub use idented_writer::IdentedWriter;
 #[derive(Debug, thiserror::Error)]
 #[error("{message}")]
 pub struct StringError {
-    pub message: String
+    pub message: String,
 }
 
 impl StringError {
     pub fn new<S: Into<String>>(message: S) -> Self {
-        Self { message: message.into() }
+        Self {
+            message: message.into(),
+        }
     }
 }
-
-

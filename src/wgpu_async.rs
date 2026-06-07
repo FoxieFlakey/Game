@@ -20,7 +20,7 @@ impl AsyncQueue {
     pub fn new(device: Device, queue: Queue) -> Self {
         Self { device, queue }
     }
-    
+
     pub fn get_device(&self) -> &Device {
         &self.device
     }

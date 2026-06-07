@@ -31,7 +31,8 @@ impl Window {
     pub fn new(
         builder: &sdl3::video::WindowBuilder,
     ) -> Result<Self, CustomError<CreateWindowError>> {
-        let win = builder.build()
+        let win = builder
+            .build()
             .map_err(|e| CreateWindowError::Create(e).into_custom_err())?;
 
         Ok(Window {
@@ -43,23 +44,16 @@ impl Window {
                         raw_display_handle: Some(
                             win.display_handle()
                                 .map_err(|e| {
-                                    CreateWindowError::GetDisplayHandle(e)
-                                        .into_custom_err()
+                                    CreateWindowError::GetDisplayHandle(e).into_custom_err()
                                 })?
                                 .as_raw(),
                         ),
                         raw_window_handle: win
                             .window_handle()
-                            .map_err(|e| {
-                                CreateWindowError::GetWindowHandle(e)
-                                    .into_custom_err()
-                            })?
+                            .map_err(|e| CreateWindowError::GetWindowHandle(e).into_custom_err())?
                             .as_raw(),
                     })
-                    .map_err(|e| {
-                        CreateWindowError::CreateWgpuSurface(e)
-                            .into_custom_err()
-                    })?
+                    .map_err(|e| CreateWindowError::CreateWgpuSurface(e).into_custom_err())?
             },
             win,
         })
@@ -96,10 +90,7 @@ impl Window {
         (w as u32, h as u32)
     }
 
-    pub fn set_visibility(
-        &mut self,
-        is_visible: bool,
-    ) -> Result<(), CustomError<sdl3::Error>> {
+    pub fn set_visibility(&mut self, is_visible: bool) -> Result<(), CustomError<sdl3::Error>> {
         let result;
         if is_visible {
             result = self.win.show();

@@ -3,13 +3,21 @@
 #![feature(min_specialization)]
 
 use std::{
-    error::Error, num::NonZero, pin::Pin, task::Poll, time::{Duration, Instant}
+    error::Error,
+    num::NonZero,
+    pin::Pin,
+    task::Poll,
+    time::{Duration, Instant},
 };
 
 use futures::{FutureExt, poll};
 
 use crate::{
-    local_resource::LocalResource, rendering::Renderer, ui::UI, util::error::{CustomError, CustomErrorExt, Printable}, window::Window
+    local_resource::LocalResource,
+    rendering::Renderer,
+    ui::UI,
+    util::error::{CustomError, CustomErrorExt, Printable},
+    window::Window,
 };
 
 mod events;
@@ -19,10 +27,10 @@ mod logging;
 mod rendering;
 mod runtimes;
 mod states;
+mod ui;
 mod util;
 mod wgpu_async;
 mod window;
-mod ui;
 
 fn main() {
     logging::init();
@@ -64,7 +72,7 @@ pub struct SdlState {
 
 pub struct MainState {
     window: Window,
-    ui: UI
+    ui: UI,
 }
 
 struct Resources {
@@ -88,18 +96,21 @@ impl Resources {
 async fn init() -> Result<Resources, Box<CustomError<dyn Error + 'static>>> {
     rendering::init().await?;
 
-    let sdl = sdl3::init()
-        .map_err(|x| x.context("Initializing SDL library"))?;
+    let sdl = sdl3::init().map_err(|x| x.context("Initializing SDL library"))?;
     let (sdl_resource, accessor) = LocalResource::new(
         "SDL subsystems",
         SdlState {
-            event: sdl.event()
+            event: sdl
+                .event()
                 .map_err(|x| x.context("Initializing event subsystem"))?,
-            video: sdl.video()
+            video: sdl
+                .video()
                 .map_err(|x| x.context("Initializing video subsystem"))?,
-            audio: sdl.audio()
+            audio: sdl
+                .audio()
                 .map_err(|x| x.context("Initializing audio subsystem"))?,
-            event_pump: sdl.event_pump()
+            event_pump: sdl
+                .event_pump()
                 .map_err(|x| x.context("Creating event pump"))?,
             sdl,
         },
@@ -120,8 +131,7 @@ async fn init() -> Result<Resources, Box<CustomError<dyn Error + 'static>>> {
 
     info!("Game window created");
 
-    let gpu = window
-        .with_surface(|x| rendering::gpu_lookup::find_gpu(x))?;
+    let gpu = window.with_surface(|x| rendering::gpu_lookup::find_gpu(x))?;
     let info = gpu.get_info();
     info!(
         "Using {} for rendering via {} at {}",
@@ -131,18 +141,24 @@ async fn init() -> Result<Resources, Box<CustomError<dyn Error + 'static>>> {
     let mut renderer = Renderer::new(gpu).await?;
     let (width, height) = window.get_size();
     let default = NonZero::new(10).unwrap();
-    renderer.set_output_size((NonZero::new(width).unwrap_or(default), NonZero::new(height).unwrap_or(default)));
+    renderer.set_output_size((
+        NonZero::new(width).unwrap_or(default),
+        NonZero::new(height).unwrap_or(default),
+    ));
     info!("Initialized rendering engine");
 
     let (renderer_resource, accessor) = LocalResource::new("Rendering engine", renderer);
     states::renderer::set(accessor);
 
-    let (main_resource, accessor) = LocalResource::new("Main state", MainState {
-        ui: UI::new(),
-        window
-    });
+    let (main_resource, accessor) = LocalResource::new(
+        "Main state",
+        MainState {
+            ui: UI::new(),
+            window,
+        },
+    );
     states::main::set(accessor);
-    
+
     Ok(Resources {
         sdl_resource,
         main_resource,
@@ -236,7 +252,11 @@ async fn handle_input(
             }
 
             _ => {
-                resources.main_resource.get_mut().ui.handle_input(delta_time, &event);
+                resources
+                    .main_resource
+                    .get_mut()
+                    .ui
+                    .handle_input(delta_time, &event);
             }
         }
     }
@@ -255,16 +275,19 @@ async fn do_render(
         .get()
         .window
         .with_surface(|surface| resources.renderer_resource.get_mut().prep_render(surface))?
-        else {
-            return Ok(());
-        };
+    else {
+        return Ok(());
+    };
 
-    permit.render(|output, encoder| {
-        resources.main_resource
-            .get()
-            .ui
-            .render(delta_time, output, encoder);
-    }).await;
-    
+    permit
+        .render(|output, encoder| {
+            resources
+                .main_resource
+                .get()
+                .ui
+                .render(delta_time, output, encoder);
+        })
+        .await;
+
     Ok(())
 }

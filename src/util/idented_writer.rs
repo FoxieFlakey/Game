@@ -43,7 +43,9 @@ impl<Writer: fmt::Write + ?Sized> fmt::Write for IdentedWriter<'_, '_, Writer> {
     }
 }
 
-impl<'ident_string, 'writer, Writer: fmt::Write + ?Sized> IdentedWriter<'ident_string, 'writer, Writer> {
+impl<'ident_string, 'writer, Writer: fmt::Write + ?Sized>
+    IdentedWriter<'ident_string, 'writer, Writer>
+{
     pub fn new(
         depth: u32,
         indent: &'ident_string str,

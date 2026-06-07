@@ -1,6 +1,4 @@
 pub enum EventHandleResult {
     Consumed,
-    Pass
+    Pass,
 }
-
-
