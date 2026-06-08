@@ -27,6 +27,11 @@ define_state!(sdl, crate::local_resource::Accessor<crate::SdlState>);
 // Main states the same, only accessible from main thread
 define_state!(main, crate::local_resource::Accessor<crate::MainState>);
 
+// Registries, contains all game registries
+// during resource loading this is None
+// which mean not ready yet
+define_state!(registries, crate::local_resource::Accessor<Option<crate::registries::Registries>>);
+
 // Rendering engine, only accessible from main thread
 define_state!(
     renderer,

@@ -10,14 +10,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use futures::{FutureExt, poll};
+use futures::{FutureExt, future::OptionFuture, poll};
 
 use crate::{
-    local_resource::LocalResource,
-    rendering::Renderer,
-    ui::UI,
-    util::error::{CustomError, CustomErrorExt, Printable},
-    window::Window,
+    local_resource::LocalResource, registries::Registries, rendering::Renderer, ui::UI, util::{StringError, error::{CustomError, CustomErrorExt, Printable}}, window::Window
 };
 
 mod events;
@@ -31,6 +27,8 @@ mod ui;
 mod util;
 mod wgpu_async;
 mod window;
+mod registry;
+mod registries;
 
 fn main() {
     logging::init();
@@ -79,6 +77,7 @@ struct Resources {
     sdl_resource: LocalResource<SdlState>,
     main_resource: LocalResource<MainState>,
     renderer_resource: LocalResource<Renderer>,
+    registries_resource: LocalResource<Option<Registries>>,
 }
 
 impl Resources {
@@ -87,6 +86,7 @@ impl Resources {
             self.sdl_resource.poll_loop(),
             self.main_resource.poll_loop(),
             self.renderer_resource.poll_loop(),
+            self.registries_resource.poll_loop(),
         );
 
         panic!("Something horribly gone wrong, poll loop for resources intended to never finishes");
@@ -159,10 +159,17 @@ async fn init() -> Result<Resources, Box<CustomError<dyn Error + 'static>>> {
     );
     states::main::set(accessor);
 
+    let (registries_resource, accessor) = LocalResource::new(
+        "Game registries",
+        None,
+    );
+    states::registries::set(accessor);
+    
     Ok(Resources {
         sdl_resource,
         main_resource,
         renderer_resource,
+        registries_resource,
     })
 }
 
@@ -174,6 +181,9 @@ async fn async_main(
 ) -> Result<(), Box<CustomError<dyn Error + 'static>>> {
     runtimes::init();
     let mut resources = init().await?;
+    info!("Minimal game subsystems ready, initializing other resources on background");
+    
+    let mut registry_init_handle = OptionFuture::from(Some(runtimes::background::spawn(registries::load_registries())));
 
     // Main game loop
     let mut do_quit = false;
@@ -213,6 +223,26 @@ async fn async_main(
             _ = tokio::time::sleep_until(sleep_deadline.into()) => {
                 // Deadline passed, always sleep till deadline
                 // as poll_loop will never be done
+            }
+            
+            Some(result) = &mut registry_init_handle => {
+                registry_init_handle = OptionFuture::from(None);
+                
+                match result {
+                    Ok(registries) => {
+                        info!("Game initialization completed!");
+                        let mut regs = resources.registries_resource.get_mut();
+                        if regs.is_some() {
+                            return Err(StringError::new("Something already initialized the registries?!").into_custom_err().into());
+                        }
+                        *regs = Some(registries);
+                    }
+                    
+                    Err(e) => {
+                        fatal!("Cannot initialize the rest of game: {e}");
+                        return Err(e.context("Initializing rest of game").into());
+                    }
+                }
             }
         }
 

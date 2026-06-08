@@ -1,5 +1,6 @@
 pub mod error;
 pub mod sig_safe;
+pub mod identifier;
 
 mod idented_writer;
 
