@@ -4,6 +4,7 @@ use crate::{
 };
 
 mod textures;
+mod util;
 
 // Contains all builtin registries
 // like textures
