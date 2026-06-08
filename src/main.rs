@@ -4,6 +4,7 @@
 
 use std::{
     error::Error,
+    ffi::CStr,
     num::NonZero,
     pin::Pin,
     task::Poll,
@@ -105,6 +106,16 @@ async fn init() -> Result<Resources, Box<CustomError<dyn Error + 'static>>> {
     rendering::init().await?;
 
     let sdl = sdl3::init().map_err(|x| x.context("Initializing SDL library"))?;
+    info!("SDL3 initialized");
+    info!("SDL3 version: {}", sdl3::version::version());
+    let revision_string = sdl3::sys::version::SDL_GetRevision();
+    if revision_string.is_null() {
+        info!("SDL3 revision: unavailable");
+    } else {
+        let revision_string = unsafe { CStr::from_ptr(revision_string) }.to_string_lossy();
+        info!("SDL3 revision: {revision_string}");
+    }
+
     let (sdl_resource, accessor) = LocalResource::new(
         "SDL subsystems",
         SdlState {
@@ -124,8 +135,6 @@ async fn init() -> Result<Resources, Box<CustomError<dyn Error + 'static>>> {
         },
     );
     states::sdl::set(accessor);
-
-    info!("SDL3 initialized");
 
     let window = Window::new(
         sdl_resource
