@@ -193,10 +193,9 @@ async fn async_main(
                 prev_start_of_render,
                 start_of_render,
                 &mut do_quit,
-            )
-            .await?;
+            )?;
 
-            do_render(&mut resources, prev_start_of_render, start_of_render).await?;
+            do_render(&mut resources, prev_start_of_render, start_of_render)?;
         }
 
         if do_quit {
@@ -224,7 +223,7 @@ async fn async_main(
     Ok(())
 }
 
-async fn handle_input(
+fn handle_input(
     resources: &mut Resources,
     prev_start_of_render: Instant,
     start_of_render: Instant,
@@ -235,7 +234,6 @@ async fn handle_input(
 
     // Render and input handle code here
     for event in resources.sdl_resource.get_mut().event_pump.poll_iter() {
-        tokio::task::yield_now().await;
         match event {
             sdl3::event::Event::Quit { .. } => {
                 *do_quit = true;
@@ -264,7 +262,7 @@ async fn handle_input(
     Ok(())
 }
 
-async fn do_render(
+fn do_render(
     resources: &mut Resources,
     prev_start_of_render: Instant,
     start_of_render: Instant,
@@ -287,8 +285,7 @@ async fn do_render(
                 .get()
                 .ui
                 .render(delta_time, output, encoder);
-        })
-        .await;
+        });
 
     Ok(())
 }

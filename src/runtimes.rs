@@ -76,7 +76,11 @@ macro_rules! define_runtime {
 // so response time for async stuffs
 // might be worse as entire rendering
 // path is sync code, when it came
-// the time to render.
+// the time to render and no attempt
+// to be made to sprinkle async yields
+// so waiting on main thread to run
+// an particular async code might take
+// forever
 define_runtime!(main);
 
 // Miscellanous background stuffs

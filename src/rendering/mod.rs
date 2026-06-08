@@ -8,11 +8,11 @@ use crate::{
     util::{
         StringError,
         error::{CustomError, CustomErrorExt},
-    },
-    wgpu_async,
+    }
 };
 
 pub mod gpu_lookup;
+pub mod util;
 
 pub static WGPU: LazyLock<wgpu::Instance> = LazyLock::new(|| {
     wgpu::Instance::new(wgpu::InstanceDescriptor {
@@ -36,7 +36,8 @@ pub async fn init() -> Result<(), Box<CustomError<dyn Error + 'static>>> {
 }
 
 pub struct Renderer {
-    queue: wgpu_async::AsyncQueue,
+    queue: wgpu::Queue,
+    device: wgpu::Device,
     gpu: wgpu::Adapter,
     config: Option<wgpu::SurfaceConfiguration>,
     need_configure: bool,
@@ -67,7 +68,8 @@ impl Renderer {
             .map_err(CustomError::convert)?;
 
         Ok(Self {
-            queue: wgpu_async::AsyncQueue::new(device, queue),
+            device,
+            queue,
             gpu: gpu.clone(),
             config: None,
             need_configure: true,
@@ -82,7 +84,7 @@ impl Renderer {
 
     fn configure_surface(&mut self, surface: &wgpu::Surface<'_>) {
         // Surface hasn't been configured
-        let device = self.queue.get_device();
+        let device = &self.device;
         let gpu = &self.gpu;
         let caps = surface.get_capabilities(gpu);
         let format = caps
@@ -160,7 +162,7 @@ impl Renderer {
 }
 
 impl RenderPermit<'_> {
-    pub async fn render<F, R>(self, render_code: F) -> R
+    pub fn render<F, R>(self, render_code: F) -> R
     where
         F: FnOnce(&wgpu::TextureView, &mut wgpu::CommandEncoder) -> R,
     {
@@ -168,19 +170,19 @@ impl RenderPermit<'_> {
             .output_surface
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-        let clear_command = clear_background(&output, &self.renderer.queue);
+        let clear_command = clear_background(&output, &self.renderer.device);
 
-        let mut encoder = self.renderer.queue.get_device().create_command_encoder(
+        let mut encoder = self.renderer.device.create_command_encoder(
             &wgpu::CommandEncoderDescriptor {
                 label: Some("Main render code"),
             },
         );
 
         let ret = render_code(&output, &mut encoder);
-        self.renderer
+        let id=  self.renderer
             .queue
-            .submit([clear_command, encoder.finish()])
-            .await;
+            .submit([clear_command, encoder.finish()]);
+        util::wait_device(&self.renderer.device, id);
         self.output_surface.present();
         ret
     }
@@ -188,10 +190,9 @@ impl RenderPermit<'_> {
 
 fn clear_background(
     output: &wgpu::TextureView,
-    queue: &wgpu_async::AsyncQueue,
+    device: &wgpu::Device
 ) -> wgpu::CommandBuffer {
-    let mut encoder = queue
-        .get_device()
+    let mut encoder = device
         .create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Clear background encoder"),
         });
