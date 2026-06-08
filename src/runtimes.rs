@@ -70,6 +70,13 @@ macro_rules! define_runtime {
 }
 
 // Main thread
+// NOTE: It has async runtime but it
+// run lots of sync codes so too many
+// async stuffs shouldn't be run here.
+// so response time for async stuffs
+// might be worse as entire rendering
+// path is sync code, when it came
+// the time to render.
 define_runtime!(main);
 
 // Miscellanous background stuffs
