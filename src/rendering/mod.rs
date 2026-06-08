@@ -118,7 +118,7 @@ impl Renderer {
         self.config = Some(new_config);
     }
 
-    pub fn texture_loader(&self) -> DataLoader {
+    pub fn data_loader(&self) -> DataLoader {
         DataLoader::new(self.device.clone(), self.queue.clone())
     }
 
