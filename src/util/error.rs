@@ -80,6 +80,10 @@ impl<'a, E: Sized + Error + 'a> CustomError<E> {
         }
     }
 
+    pub fn get_err(&self) -> &E {
+        &self.err
+    }
+
     pub fn into_boxed(self) -> CustomError<Box<dyn Error + 'a>> {
         CustomError {
             err: Box::new(self.err),

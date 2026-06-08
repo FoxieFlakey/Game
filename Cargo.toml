@@ -8,10 +8,12 @@ bytemuck = "1.25.0"
 chrono = "0.4.44"
 closure = "0.3.0"
 futures = "0.3.32"
+image = { version = "0.25.10", default-features = false, features = ["color_quant", "png", "rayon", "webp"] }
 itoa = "1.0.18"
 libc = "0.2.186"
 log = "0.4.29"
 raw-window-handle = "0.6.2"
+rayon = "1.12.0"
 sdl3 = { version = "0.17.3", features = ["raw-window-handle"] }
 signal-hook = "0.4.4"
 taffy = "0.10.1"

@@ -69,6 +69,66 @@ macro_rules! define_runtime {
     };
 }
 
+macro_rules! define_rayon_runtime {
+    ($name:ident) => {
+        pub mod $name {
+            use std::{sync::OnceLock, panic::Location, num::NonZero};
+            use tokio::sync::oneshot;
+
+            static RUNTIME: OnceLock<rayon::ThreadPool> = OnceLock::new();
+
+            #[allow(unused)]
+            pub fn set(runtime: rayon::ThreadPool) {
+                RUNTIME.set(runtime)
+                    .ok()
+                    .expect(&format!("cannot set runtime {}", stringify!($name)))
+            }
+
+            #[allow(unused)]
+            #[track_caller]
+            // exec always spawns the task regardless if Future returned here is await'ed or not
+            pub fn exec<R, F: FnOnce() -> R + Send + 'static>(func: F) -> impl Future<Output = R>
+               where R: Send + 'static
+            {
+                let caller = Location::caller();
+                let (send, recv) = oneshot::channel();
+                get().spawn(move || {
+                    if let Err(_) = send.send(func()) {
+                        panic!("Cannot send result of runtime exec on {} called by {caller}", stringify!($name))
+                    }
+                });
+
+                async move {
+                    match recv.await {
+                        Ok(ret) => ret,
+                        Err(e) => {
+                            panic!("Cannot receive result of runtime exec on {} called by {caller}: {e}", stringify!($name))
+                        }
+                    }
+                }
+            }
+
+            #[allow(unused)]
+            pub fn get() -> &'static rayon::ThreadPool {
+                RUNTIME.get()
+                    .expect(&format!("Compute runtime {} not present yet", stringify!($name)))
+            }
+
+            #[allow(unused)]
+            pub fn init_default() {
+                match rayon::ThreadPoolBuilder::new()
+                    .num_threads(std::thread::available_parallelism().map(NonZero::get).unwrap_or(4))
+                    .thread_name(|x| format!("Compute-{x:02}"))
+                    .build()
+                {
+                    Ok(x) => set(x),
+                    Err(e) => crate::fatal!("Error initializing {} rayon runtime: {e}", stringify!(name))
+                }
+            }
+        }
+    };
+}
+
 // Main thread
 // NOTE: It has async runtime but it
 // run lots of sync codes so too many
@@ -86,6 +146,12 @@ define_runtime!(main);
 // Miscellanous background stuffs
 define_runtime!(background);
 
+// Compute heavy stuffs that might get
+// delayed if there many running. Its
+// uses rayon as the runtime
+define_rayon_runtime!(compute);
+
 pub fn init() {
     self::background::init_default();
+    self::compute::init_default();
 }

@@ -5,12 +5,14 @@ use std::{
 };
 
 use crate::{
+    rendering::data_loader::DataLoader,
     util::{
         StringError,
         error::{CustomError, CustomErrorExt},
-    }
+    },
 };
 
+pub mod data_loader;
 pub mod gpu_lookup;
 pub mod util;
 
@@ -116,6 +118,10 @@ impl Renderer {
         self.config = Some(new_config);
     }
 
+    pub fn texture_loader(&self) -> DataLoader {
+        DataLoader::new(self.device.clone(), self.queue.clone())
+    }
+
     pub fn prep_render<'a>(
         &'a mut self,
         surface: &wgpu::Surface<'_>,
@@ -172,14 +178,16 @@ impl RenderPermit<'_> {
             .create_view(&wgpu::TextureViewDescriptor::default());
         let clear_command = clear_background(&output, &self.renderer.device);
 
-        let mut encoder = self.renderer.device.create_command_encoder(
-            &wgpu::CommandEncoderDescriptor {
-                label: Some("Main render code"),
-            },
-        );
+        let mut encoder =
+            self.renderer
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Main render code"),
+                });
 
         let ret = render_code(&output, &mut encoder);
-        let id=  self.renderer
+        let id = self
+            .renderer
             .queue
             .submit([clear_command, encoder.finish()]);
         util::wait_device(&self.renderer.device, id);
@@ -188,14 +196,10 @@ impl RenderPermit<'_> {
     }
 }
 
-fn clear_background(
-    output: &wgpu::TextureView,
-    device: &wgpu::Device
-) -> wgpu::CommandBuffer {
-    let mut encoder = device
-        .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Clear background encoder"),
-        });
+fn clear_background(output: &wgpu::TextureView, device: &wgpu::Device) -> wgpu::CommandBuffer {
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("Clear background encoder"),
+    });
 
     encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
         label: Some("Clear background"),

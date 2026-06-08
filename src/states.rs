@@ -1,3 +1,7 @@
+use std::sync::OnceLock;
+
+use crate::rendering::data_loader::DataLoader;
+
 macro_rules! define_state (
     ($name:ident, $type:ty) => {
         pub mod $name {
@@ -30,10 +34,16 @@ define_state!(main, crate::local_resource::Accessor<crate::MainState>);
 // Registries, contains all game registries
 // during resource loading this is None
 // which mean not ready yet
-define_state!(registries, crate::local_resource::Accessor<Option<crate::registries::Registries>>);
+define_state!(
+    registries,
+    crate::local_resource::Accessor<Option<crate::registries::Registries>>
+);
 
 // Rendering engine, only accessible from main thread
 define_state!(
     renderer,
     crate::local_resource::Accessor<crate::rendering::Renderer>
 );
+
+// Data loader for rendering data accesible anywhere
+define_state!(data_loader, crate::rendering::data_loader::DataLoader);

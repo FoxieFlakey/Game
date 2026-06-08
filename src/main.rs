@@ -13,13 +13,23 @@ use std::{
 use futures::{FutureExt, future::OptionFuture, poll};
 
 use crate::{
-    local_resource::LocalResource, registries::Registries, rendering::Renderer, ui::UI, util::{StringError, error::{CustomError, CustomErrorExt, Printable}}, window::Window
+    local_resource::LocalResource,
+    registries::Registries,
+    rendering::Renderer,
+    ui::UI,
+    util::{
+        StringError,
+        error::{CustomError, CustomErrorExt, Printable},
+    },
+    window::Window,
 };
 
 mod events;
 mod fail_safe;
 mod local_resource;
 mod logging;
+mod registries;
+mod registry;
 mod rendering;
 mod runtimes;
 mod states;
@@ -27,8 +37,6 @@ mod ui;
 mod util;
 mod wgpu_async;
 mod window;
-mod registry;
-mod registries;
 
 fn main() {
     logging::init();
@@ -159,12 +167,9 @@ async fn init() -> Result<Resources, Box<CustomError<dyn Error + 'static>>> {
     );
     states::main::set(accessor);
 
-    let (registries_resource, accessor) = LocalResource::new(
-        "Game registries",
-        None,
-    );
+    let (registries_resource, accessor) = LocalResource::new("Game registries", None);
     states::registries::set(accessor);
-    
+
     Ok(Resources {
         sdl_resource,
         main_resource,
@@ -182,8 +187,9 @@ async fn async_main(
     runtimes::init();
     let mut resources = init().await?;
     info!("Minimal game subsystems ready, initializing other resources on background");
-    
-    let mut registry_init_handle = OptionFuture::from(Some(runtimes::background::spawn(registries::load_registries())));
+
+    let a = runtimes::background::spawn(registries::load_registries());
+    let mut registry_init_handle = OptionFuture::from(Some(a));
 
     // Main game loop
     let mut do_quit = false;
@@ -224,10 +230,10 @@ async fn async_main(
                 // Deadline passed, always sleep till deadline
                 // as poll_loop will never be done
             }
-            
+
             Some(result) = &mut registry_init_handle => {
                 registry_init_handle = OptionFuture::from(None);
-                
+
                 match result {
                     Ok(Ok(registries)) => {
                         info!("Game initialization completed!");
@@ -235,15 +241,15 @@ async fn async_main(
                         if regs.is_some() {
                             return Err(StringError::new("Something already initialized the registries?!").into_custom_err().into());
                         }
-                        
+
                         *regs = Some(registries);
                     }
-                    
+
                     Ok(Err(e)) => {
                         fatal!("Game initialization failed: {e}");
                         return Err(StringError::new_with_cause("Failed to init registries", e).into_custom_err().into());
                     }
-                    
+
                     Err(e) => {
                         fatal!("Cannot initialize the rest of game: {e}");
                         return Err(e.context("Initializing rest of game").into());
@@ -314,14 +320,13 @@ fn do_render(
         return Ok(());
     };
 
-    permit
-        .render(|output, encoder| {
-            resources
-                .main_resource
-                .get()
-                .ui
-                .render(delta_time, output, encoder);
-        });
+    permit.render(|output, encoder| {
+        resources
+            .main_resource
+            .get()
+            .ui
+            .render(delta_time, output, encoder);
+    });
 
     Ok(())
 }

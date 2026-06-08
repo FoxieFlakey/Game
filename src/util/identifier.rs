@@ -5,7 +5,7 @@ pub const GAME_ID: &str = "foxiefox";
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Identifier {
     pub namespace: String,
-    pub path: String
+    pub path: String,
 }
 
 impl Display for Identifier {
@@ -18,8 +18,7 @@ impl Identifier {
     pub(crate) fn new<S: Into<String>>(path: S) -> Self {
         Self {
             namespace: GAME_ID.to_string(),
-            path: path.into()
+            path: path.into(),
         }
     }
 }
-
