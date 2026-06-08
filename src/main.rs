@@ -229,13 +229,19 @@ async fn async_main(
                 registry_init_handle = OptionFuture::from(None);
                 
                 match result {
-                    Ok(registries) => {
+                    Ok(Ok(registries)) => {
                         info!("Game initialization completed!");
                         let mut regs = resources.registries_resource.get_mut();
                         if regs.is_some() {
                             return Err(StringError::new("Something already initialized the registries?!").into_custom_err().into());
                         }
+                        
                         *regs = Some(registries);
+                    }
+                    
+                    Ok(Err(e)) => {
+                        fatal!("Game initialization failed: {e}");
+                        return Err(StringError::new_with_cause("Failed to init registries", e).into_custom_err().into());
                     }
                     
                     Err(e) => {
