@@ -24,7 +24,7 @@ pub struct CustomError<T: ?Sized + 'static> {
 
     // Errors that occured while handling
     // the primary error.
-    suppressed: Vec<Box<CustomError<Box<dyn Error>>>>,
+    suppressed: Vec<Box<CustomError<Box<dyn Error + Send>>>>,
     err: T,
 }
 
