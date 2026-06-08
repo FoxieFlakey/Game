@@ -2,7 +2,7 @@
 // which is !Send and/or !Sync.
 
 use std::{
-    cell::UnsafeCell,
+    cell::{Ref, RefCell, RefMut, UnsafeCell},
     fmt::Display,
     marker::PhantomData,
     panic::Location,
@@ -11,14 +11,9 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
     thread::{self, ThreadId},
-    time::Instant,
 };
 
-use tokio::{
-    select,
-    sync::{mpsc, oneshot},
-    time::sleep_until,
-};
+use tokio::sync::{mpsc, oneshot};
 
 #[derive(Clone)]
 pub struct ResourceInfo {
@@ -38,9 +33,28 @@ impl Display for ResourceInfo {
 
 struct Shared<T> {
     is_shutdown: AtomicBool,
-    data: UnsafeCell<T>,
+    // Accessed only by thread who owns
+    // the resource
+    data: UnsafeCell<RefCell<T>>,
     info: ResourceInfo,
     owning_thread: ThreadId,
+}
+
+unsafe impl<T> Send for Shared<T> {}
+unsafe impl<T> Sync for Shared<T> {}
+
+impl<T> Shared<T> {
+    // Panics if called on other thread except the owner
+    fn get_data(&self) -> &RefCell<T> {
+        assert_eq!(
+            self.owning_thread,
+            thread::current_id(),
+            "Attempted to access resource belonging to other thread"
+        );
+        // SAFETY: There will be no mut access, and the data only
+        // accessed by one thread which owns it
+        unsafe { self.data.as_ref_unchecked() }
+    }
 }
 
 pub struct LocalResource<T> {
@@ -54,9 +68,6 @@ pub struct Accessor<T> {
     shared: Arc<Shared<T>>,
     request_sender: mpsc::Sender<Box<dyn FnOnce(&T) + Send>>,
 }
-
-unsafe impl<T> Send for Accessor<T> {}
-unsafe impl<T> Sync for Accessor<T> {}
 
 impl<T> Accessor<T> {
     #[track_caller]
@@ -74,9 +85,8 @@ impl<T> Accessor<T> {
 
         async move {
             if self.shared.owning_thread == thread::current_id() {
-                // SAFETY: This is the thread that owns the resource, just use it directly
-                // there is no &mut access anywhere
-                let reference = unsafe { self.shared.data.as_ref_unchecked() };
+                let reference = &self.shared.get_data().try_borrow()
+                    .expect(format!("Caller {caller} attempted to borrow resource while its mutably borrowed (both is on same thread)").as_str());
                 return closure(reference);
             }
 
@@ -116,23 +126,21 @@ impl<T> Drop for LocalResource<T> {
 }
 
 impl<T> LocalResource<T> {
-    pub fn get(&self) -> &T {
-        // SAFETY: This is the thread that owns the resource, just use it directly
-        // there no &mut that can happen caused by other threads via sending request
-        // as polling only give immutable access to other
-        //
-        // The guarantee that caller thread own this one resource is enforced by
-        // !Send and !Sync
-        unsafe { self.shared.data.as_ref_unchecked() }
+    pub fn get<'a>(&'a self) -> Ref<'a, T> {
+        // This is the thread that owns the resource
+        // there won't be panic due LocalResource can't
+        // be sent to other thread
+        self.shared.get_data().borrow()
     }
 
-    pub fn get_mut(&mut self) -> &mut T {
-        // SAFETY: This is the thread that owns the resource, just use it directly
-        // the &mut guarantee nothing accessing the resource itself
-        //
-        // The guarantee that caller thread own this one resource is enforced by
-        // !Send and !Sync
-        unsafe { self.shared.data.as_mut_unchecked() }
+    // May panics following RefCell's normal
+    // behaviour if there Ref/RefMut existed
+    // before this call
+    pub fn get_mut<'a>(&'a mut self) -> RefMut<'a, T> {
+        // This is the thread that owns the resource
+        // there won't be panic due LocalResource can't
+        // be sent to other thread
+        self.shared.get_data().borrow_mut()
     }
 
     #[track_caller]
@@ -145,7 +153,7 @@ impl<T> LocalResource<T> {
             },
             owning_thread: thread::current().id(),
             is_shutdown: AtomicBool::new(false),
-            data: UnsafeCell::new(data),
+            data: UnsafeCell::new(RefCell::new(data)),
         });
 
         (
@@ -171,11 +179,8 @@ impl<T> LocalResource<T> {
                 return;
             };
 
-            // SAFETY: Self being !Send and !Sync ensures that that reference to the data
-            // doesnt violate the safety of it (which is assumed to be !Send and !Sync)
-            // Handle request for accessing
-            let reference = unsafe { self.shared.data.as_ref_unchecked() };
-            req(reference)
+            let reference = self.get();
+            req(&reference)
         }
     }
 }

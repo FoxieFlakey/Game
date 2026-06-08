@@ -270,11 +270,12 @@ async fn do_render(
     start_of_render: Instant,
 ) -> Result<(), Box<CustomError<dyn Error + 'static>>> {
     let delta_time = start_of_render - prev_start_of_render;
+    let mut renderer = resources.renderer_resource.get_mut();
     let Some(permit) = resources
         .main_resource
         .get()
         .window
-        .with_surface(|surface| resources.renderer_resource.get_mut().prep_render(surface))?
+        .with_surface(|surface| renderer.prep_render(surface))?
     else {
         return Ok(());
     };
