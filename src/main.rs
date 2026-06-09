@@ -221,7 +221,7 @@ async fn async_main(
                 &mut do_quit,
             )?;
 
-            do_render(&mut resources, prev_start_of_render, start_of_render)?;
+            do_render(&mut resources, start_of_render - prev_start_of_render)?;
         }
 
         if do_quit {
@@ -316,10 +316,8 @@ fn handle_input(
 
 fn do_render(
     resources: &mut Resources,
-    prev_start_of_render: Instant,
-    start_of_render: Instant,
+    delta_time: Duration,
 ) -> Result<(), Box<CustomError<dyn Error + 'static>>> {
-    let delta_time = start_of_render - prev_start_of_render;
     let mut renderer = resources.renderer_resource.get_mut();
     let Some(permit) = resources
         .main_resource
