@@ -165,6 +165,10 @@ impl Renderer {
             output_surface,
         }))
     }
+
+    pub fn get_device(&self) -> &wgpu::Device {
+        &self.device
+    }
 }
 
 impl RenderPermit<'_> {

@@ -164,6 +164,7 @@ async fn init() -> Result<Resources, Box<CustomError<dyn Error + 'static>>> {
     ));
     info!("Initialized rendering engine");
 
+    states::main_dev::set(renderer.get_device().clone());
     states::data_loader::set(renderer.data_loader());
     let (renderer_resource, accessor) = LocalResource::new("Rendering engine", renderer);
     states::renderer::set(accessor);

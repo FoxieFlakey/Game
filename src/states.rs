@@ -1,7 +1,3 @@
-use std::sync::OnceLock;
-
-use crate::rendering::data_loader::DataLoader;
-
 macro_rules! define_state (
     ($name:ident, $type:ty) => {
         pub mod $name {
@@ -47,3 +43,7 @@ define_state!(
 
 // Data loader for rendering data accesible anywhere
 define_state!(data_loader, crate::rendering::data_loader::DataLoader);
+
+// wgpu::Device referring to active device
+// it is accessible anywhere
+define_state!(main_dev, wgpu::Device);
