@@ -12,6 +12,7 @@ use crate::{
     },
 };
 
+pub mod buffer;
 pub mod data_loader;
 pub mod gpu_lookup;
 pub mod util;

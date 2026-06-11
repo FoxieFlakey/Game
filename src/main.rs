@@ -1,6 +1,7 @@
 #![feature(unsafe_cell_access)]
 #![feature(current_thread_id)]
 #![feature(min_specialization)]
+#![feature(range_bounds_is_empty)]
 
 use std::{
     error::Error,
