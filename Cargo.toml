@@ -16,6 +16,7 @@ raw-window-handle = "0.6.2"
 rayon = "1.12.0"
 sdl3 = { version = "0.17.3", features = ["raw-window-handle"] }
 signal-hook = "0.4.4"
+smallvec = "1.15.2"
 taffy = "0.10.1"
 thiserror = "2.0.18"
 thread_local = "1.1.9"
