@@ -1,6 +1,8 @@
-use std::time::Duration;
+use std::{error::Error, time::Duration};
 
-use crate::events::EventHandleResult;
+use smallvec::{SmallVec, smallvec};
+
+use crate::{events::EventHandleResult, rendering, util::error::CustomError};
 
 pub mod component;
 
@@ -23,7 +25,14 @@ impl UI {
         &self,
         delta_time: Duration,
         output: &wgpu::TextureView,
-        encoder: &wgpu::CommandEncoder,
-    ) {
+        encoder_maker: &dyn Fn(&wgpu::CommandEncoderDescriptor) -> wgpu::CommandEncoder,
+    ) -> Result<
+        (
+            (),
+            SmallVec<[wgpu::CommandBuffer; rendering::STACK_ALLOCATED_COUNT_OF_BUFS]>,
+        ),
+        Box<CustomError<dyn Error>>,
+    > {
+        Ok(((), smallvec![]))
     }
 }

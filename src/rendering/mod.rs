@@ -6,6 +6,8 @@ use std::{
     sync::LazyLock,
 };
 
+use smallvec::SmallVec;
+
 use crate::{
     rendering::data_loader::DataLoader,
     util::{
@@ -233,6 +235,8 @@ impl Renderer {
     }
 }
 
+pub const STACK_ALLOCATED_COUNT_OF_BUFS: usize = 8;
+
 impl RenderPermit<'_> {
     // If the frame can be presented to surface, it returns true. else false
     #[must_use = "if not checked, necessary requeuing frame to be present again in future. Causing some frames to be lost"]
@@ -340,9 +344,12 @@ impl RenderPermit<'_> {
         }
     }
 
-    pub fn render<F, R>(mut self, render_code: F) -> R
+    pub fn render<F, T, E>(mut self, render_code: F) -> Result<T, E>
     where
-        F: FnOnce(&wgpu::TextureView, &mut wgpu::CommandEncoder) -> R,
+        F: FnOnce(
+            &wgpu::TextureView,
+            &dyn Fn(&wgpu::CommandEncoderDescriptor) -> wgpu::CommandEncoder,
+        ) -> Result<(T, SmallVec<[wgpu::CommandBuffer; 8]>), E>,
     {
         let frame;
 
@@ -363,23 +370,20 @@ impl RenderPermit<'_> {
             .create_view(&wgpu::TextureViewDescriptor::default());
         let clear_command = clear_background(&output, &self.renderer.device);
 
-        let mut encoder =
-            self.renderer
-                .device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("Main render code"),
-                });
+        let mut cmds = SmallVec::<[wgpu::CommandBuffer; 32]>::new();
+        cmds.push(clear_command);
 
-        let ret = render_code(&output, &mut encoder);
-        let id = self
-            .renderer
-            .queue
-            .submit([clear_command, encoder.finish()]);
+        let (ret, mut render_cmds) = render_code(&output, &|desc| {
+            self.renderer.device.create_command_encoder(desc)
+        })?;
+        cmds.append(&mut render_cmds);
+
+        let id = self.renderer.queue.submit(cmds);
         self.renderer.inflight_frames.push_back(InFlightFrame {
             poller: Some(self.renderer.device_poller.create_poll(id)),
             frame_data: frame,
         });
-        ret
+        Ok(ret)
     }
 }
 

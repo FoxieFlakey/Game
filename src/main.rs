@@ -35,12 +35,12 @@ mod registries;
 mod registry;
 mod rendering;
 mod runtimes;
+mod screen;
 mod states;
 mod ui;
 mod util;
 mod wgpu_async;
 mod window;
-mod screen;
 
 fn main() {
     logging::init();
@@ -332,13 +332,13 @@ fn do_render(
         return Ok(());
     };
 
-    permit.render(|output, encoder| {
+    permit.render(|output, encoder_maker| {
         resources
             .main_resource
             .get()
             .ui
-            .render(delta_time, output, encoder);
-    });
+            .render(delta_time, output, encoder_maker)
+    })?;
 
     Ok(())
 }
