@@ -1,4 +1,6 @@
 use std::{
+    cmp,
+    collections::VecDeque,
     error::Error,
     num::{NonZero, NonZeroU32},
     sync::LazyLock,
@@ -45,6 +47,27 @@ pub struct Renderer {
     config: Option<wgpu::SurfaceConfiguration>,
     need_configure: bool,
     output_size: (NonZeroU32, NonZeroU32),
+
+    // per frame data for render aheads
+    // where GPU working on N frame while
+    // CPU prepares N+1, N+2, etc frame
+    //
+    // This will be empty, till surface is
+    // configured
+    per_frame_data_cache: VecDeque<Frame>,
+    inflight_frames: VecDeque<InFlightFrame>,
+    inflight_max_count: usize,
+
+    device_poller: util::DevicePoller,
+}
+
+struct InFlightFrame {
+    poller: Option<util::SubmissionPoller>,
+    frame_data: Frame,
+}
+
+struct Frame {
+    output: wgpu::Texture,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -55,7 +78,12 @@ pub enum RendererCreateFailed {
 
 pub struct RenderPermit<'a> {
     renderer: &'a mut Renderer,
-    output_surface: wgpu::SurfaceTexture,
+
+    // A single Option to blit to surface
+    // if its None, then blitting to surface can't
+    // happen. If in single render in RenderPermit
+    // found two frames ready
+    output_surface: Option<wgpu::SurfaceTexture>,
 }
 
 impl Renderer {
@@ -71,12 +99,16 @@ impl Renderer {
             .map_err(CustomError::convert)?;
 
         Ok(Self {
+            device_poller: util::DevicePoller::new(device.clone()),
             device,
             queue,
             gpu: gpu.clone(),
             config: None,
             need_configure: true,
             output_size: (NonZero::new(10).unwrap(), NonZero::new(10).unwrap()),
+            inflight_frames: VecDeque::new(),
+            per_frame_data_cache: VecDeque::new(),
+            inflight_max_count: 1,
         })
     }
 
@@ -111,12 +143,41 @@ impl Renderer {
             desired_maximum_frame_latency: 2,
             width: self.output_size.0.get(),
             height: self.output_size.1.get(),
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: wgpu::TextureUsages::COPY_DST,
             view_formats: vec![],
         };
 
         surface.configure(device, &new_config);
+        self.update_frame_data_caches(&new_config);
         self.config = Some(new_config);
+    }
+
+    fn update_frame_data_caches(&mut self, new_surface_config: &wgpu::SurfaceConfiguration) {
+        // Clearing the entire inflight queue (dropping previous frames)
+        // and erasing cache
+        self.inflight_frames.clear();
+        self.per_frame_data_cache.clear();
+
+        for _ in 0..self.inflight_max_count {
+            // Recreate "staging" texture where GPU renders into
+            // before finally blitted to surface
+            self.per_frame_data_cache.push_back(Frame {
+                output: self.device.create_texture(&wgpu::TextureDescriptor {
+                    dimension: wgpu::TextureDimension::D2,
+                    label: Some("Intemediary texture"),
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    view_formats: &[],
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+                    size: wgpu::Extent3d {
+                        depth_or_array_layers: 1,
+                        height: new_surface_config.height,
+                        width: new_surface_config.width,
+                    },
+                    format: new_surface_config.format,
+                }),
+            });
+        }
     }
 
     pub fn data_loader(&self) -> DataLoader {
@@ -163,7 +224,7 @@ impl Renderer {
 
         Ok(Some(RenderPermit {
             renderer: self,
-            output_surface,
+            output_surface: Some(output_surface),
         }))
     }
 
@@ -173,13 +234,132 @@ impl Renderer {
 }
 
 impl RenderPermit<'_> {
-    pub fn render<F, R>(self, render_code: F) -> R
+    // If the frame can be presented to surface, it returns true. else false
+    #[must_use = "if not checked, necessary requeuing frame to be present again in future. Causing some frames to be lost"]
+    fn present_frame_to_surface(&mut self, frame: &Frame) -> bool {
+        let Some(output_surface) = self.output_surface.take() else {
+            return false;
+        };
+
+        let dest = &output_surface.texture;
+        let src = &frame.output;
+
+        let mut cmd =
+            self.renderer
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Blit final frame to display"),
+                });
+
+        cmd.copy_texture_to_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: src,
+                mip_level: 0,
+                aspect: wgpu::TextureAspect::All,
+                origin: wgpu::Origin3d::ZERO,
+            },
+            wgpu::TexelCopyTextureInfo {
+                texture: dest,
+                mip_level: 0,
+                aspect: wgpu::TextureAspect::All,
+                origin: wgpu::Origin3d::ZERO,
+            },
+            wgpu::Extent3d {
+                depth_or_array_layers: 1,
+                height: cmp::min(dest.height(), src.height()),
+                width: cmp::min(dest.width(), src.width()),
+            },
+        );
+
+        let id = self.renderer.queue.submit([cmd.finish()]);
+
+        // Have to wait, or else if CPU fast enough it would reach the this function again before the
+        // Texture for surface is done being used by GPU (to be blitted into)
+        util::wait_device(&self.renderer.device, id);
+
+        // Now surface contains the rendered surface
+        output_surface.present();
+
+        true
+    }
+
+    // Return bool if any of inflight is presented
+    fn check_inflight(&mut self) {
+        let Some(mut oldest_inflight) = self.renderer.inflight_frames.pop_front() else {
+            return;
+        };
+
+        let is_completed;
+        if let Some(poller) = oldest_inflight.poller.as_mut() {
+            is_completed = poller.poll();
+        } else {
+            // Because poller don't exists, then its completed
+            is_completed = true;
+        }
+
+        // If an inflight frme completed, then copy/present to surface
+        if is_completed {
+            oldest_inflight.poller = None;
+
+            // The inflight frame is ready, it can be blitted/copied to final surface
+            if self.present_frame_to_surface(&oldest_inflight.frame_data) {
+                self.renderer
+                    .per_frame_data_cache
+                    .push_back(oldest_inflight.frame_data);
+            } else {
+                // Couldn't blit to surface because surface is already presented
+                // push back to queue
+                self.renderer.inflight_frames.push_front(oldest_inflight);
+            }
+        } else {
+            // Not ready, put it back in front
+            self.renderer.inflight_frames.push_front(oldest_inflight);
+        }
+    }
+
+    fn wait_inflight(&mut self) -> Option<Frame> {
+        let mut oldest_inflight = self
+            .renderer
+            .inflight_frames
+            .pop_front()
+            .expect("If cache of frame data empty, there must be atleast one inflight");
+
+        if let Some(poller) = oldest_inflight.poller.take() {
+            // If GPU still doing stuff, lets wait
+            poller.wait();
+        }
+
+        // Then the frame can be blitted/copied to final surface
+        if self.present_frame_to_surface(&oldest_inflight.frame_data) {
+            Some(oldest_inflight.frame_data)
+        } else {
+            // Present didn't happen, lets requeue it to attempt present again
+            // in future
+            self.renderer.inflight_frames.push_front(oldest_inflight);
+            None
+        }
+    }
+
+    pub fn render<F, R>(mut self, render_code: F) -> R
     where
         F: FnOnce(&wgpu::TextureView, &mut wgpu::CommandEncoder) -> R,
     {
-        let output = self
-            .output_surface
-            .texture
+        let frame;
+
+        if let Some(data) = self.renderer.per_frame_data_cache.pop_front() {
+            // There available frame data, use it
+            frame = data;
+
+            // The surface hasn't been presented, lets check if there any inflight that is done
+            self.check_inflight();
+        } else {
+            frame = self
+                .wait_inflight()
+                .expect("cannot happen, the surface havent beeen presented.");
+        }
+
+        let output = frame
+            .output
             .create_view(&wgpu::TextureViewDescriptor::default());
         let clear_command = clear_background(&output, &self.renderer.device);
 
@@ -195,8 +375,10 @@ impl RenderPermit<'_> {
             .renderer
             .queue
             .submit([clear_command, encoder.finish()]);
-        util::wait_device(&self.renderer.device, id);
-        self.output_surface.present();
+        self.renderer.inflight_frames.push_back(InFlightFrame {
+            poller: Some(self.renderer.device_poller.create_poll(id)),
+            frame_data: frame,
+        });
         ret
     }
 }

@@ -2,6 +2,7 @@
 #![feature(current_thread_id)]
 #![feature(min_specialization)]
 #![feature(range_bounds_is_empty)]
+#![feature(oneshot_channel)]
 
 use std::{
     error::Error,
