@@ -5,6 +5,7 @@ use smallvec::{SmallVec, smallvec};
 use crate::{events::EventHandleResult, screen::Screen};
 
 pub mod component;
+pub mod primitives;
 
 pub struct UI {}
 
