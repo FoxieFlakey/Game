@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{error::Error, time::Duration};
 
 use smallvec::SmallVec;
 
@@ -11,12 +11,14 @@ pub const STACK_ALLOCATED_COUNT: usize = 8;
 pub trait Screen: 'static {
     fn render(
         &mut self,
+        delta_time: Duration,
         output_view: &wgpu::TextureView,
-        cmd_encoder_creator: &dyn Fn() -> wgpu::CommandEncoder,
+        cmd_encoder_creator: &dyn Fn(&wgpu::CommandEncoderDescriptor) -> wgpu::CommandEncoder,
     ) -> Result<SmallVec<[wgpu::CommandBuffer; STACK_ALLOCATED_COUNT]>, Box<CustomError<dyn Error>>>;
 
-    fn handle_events(
+    fn handle_event(
         &mut self,
+        delta_time: Duration,
         event: &sdl3::event::Event,
     ) -> Result<EventHandleResult, Box<CustomError<dyn Error>>>;
 }

@@ -19,7 +19,7 @@ use crate::{
     local_resource::LocalResource,
     registries::Registries,
     rendering::Renderer,
-    ui::UI,
+    screen::{Screen, screen_stack::ScreenStack},
     util::{
         StringError,
         error::{CustomError, CustomErrorExt, Printable},
@@ -82,7 +82,7 @@ pub struct SdlState {
 
 pub struct MainState {
     window: Window,
-    ui: UI,
+    screen_stack: ScreenStack,
 }
 
 struct Resources {
@@ -175,7 +175,7 @@ async fn init() -> Result<Resources, Box<CustomError<dyn Error + 'static>>> {
     let (main_resource, accessor) = LocalResource::new(
         "Main state",
         MainState {
-            ui: UI::new(),
+            screen_stack: ScreenStack::new(),
             window,
         },
     );
@@ -309,8 +309,8 @@ fn handle_input(
                 resources
                     .main_resource
                     .get_mut()
-                    .ui
-                    .handle_input(delta_time, &event);
+                    .screen_stack
+                    .handle_event(delta_time, &event)?;
             }
         }
     }
@@ -335,9 +335,10 @@ fn do_render(
     permit.render(|output, encoder_maker| {
         resources
             .main_resource
-            .get()
-            .ui
+            .get_mut()
+            .screen_stack
             .render(delta_time, output, encoder_maker)
+            .map(|cmds| ((), cmds))
     })?;
 
     Ok(())

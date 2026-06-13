@@ -4,7 +4,7 @@
 // This also handles setting up proper stuffs to
 // allow that
 
-use std::error::Error;
+use std::{error::Error, time::Duration};
 
 use smallvec::SmallVec;
 
@@ -33,28 +33,32 @@ impl ScreenStack {
 }
 
 impl Screen for ScreenStack {
-    fn handle_events(
+    fn handle_event(
         &mut self,
+        delta_time: Duration,
         event: &sdl3::event::Event,
-    ) -> Result<EventHandleResult, Box<CustomError<dyn Error>>> {
+    ) -> Result<EventHandleResult, Box<CustomError<dyn Error + 'static>>> {
         // Top most screen receives events first beffore lower level
         for screen in self.stack.iter_mut().rev() {
-            screen.handle_events(&event)?;
+            screen.handle_event(delta_time, &event)?;
         }
         Ok(EventHandleResult::Pass)
     }
 
     fn render(
         &mut self,
+        delta_time: Duration,
         output_view: &wgpu::TextureView,
-        cmd_encoder_creator: &dyn Fn() -> wgpu::CommandEncoder,
-    ) -> Result<SmallVec<[wgpu::CommandBuffer; STACK_ALLOCATED_COUNT]>, Box<CustomError<dyn Error>>>
-    {
+        cmd_encoder_creator: &dyn Fn(&wgpu::CommandEncoderDescriptor) -> wgpu::CommandEncoder,
+    ) -> Result<
+        SmallVec<[wgpu::CommandBuffer; STACK_ALLOCATED_COUNT]>,
+        Box<CustomError<dyn Error + 'static>>,
+    > {
         let mut result = SmallVec::new();
 
         // Bottom most screen draw first, then top
         for screen in self.stack.iter_mut().rev() {
-            result.append(&mut screen.render(output_view, cmd_encoder_creator)?);
+            result.append(&mut screen.render(delta_time, output_view, cmd_encoder_creator)?);
         }
 
         Ok(result)
