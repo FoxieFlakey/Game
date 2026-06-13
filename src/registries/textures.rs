@@ -1,13 +1,14 @@
 use std::fmt::Display;
 
 use anyhow::Context;
-use closure::closure;
 
-use crate::{registries::util, registry::Registry, runtimes, states, util::identifier::Identifier};
+use crate::{
+    error, registries::util, registry::Registry, runtimes, states, util::identifier::Identifier,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum SingleTextureLoadError {
-    #[error("Cannot load image at {path}")]
+    #[error("Cannot load image")]
     FailedToLoadImage {
         path: String,
         #[source]
@@ -15,27 +16,24 @@ pub enum SingleTextureLoadError {
     },
 }
 
-#[derive(thiserror::Error, Debug)]
+#[derive(Debug)]
 pub struct TextureLoadError {
-    pub failures: Vec<anyhow::Error>,
+    pub failures: Vec<(Identifier, anyhow::Error)>,
+}
+
+impl std::error::Error for TextureLoadError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.failures.iter().map(|x| x.1.as_ref()).next()
+    }
 }
 
 impl Display for TextureLoadError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "There are {} textures failed to load (",
+            "There are {} textures failed to load",
             self.failures.len()
-        )?;
-        for failure in &self.failures {
-            match failure.downcast_ref::<SingleTextureLoadError>().unwrap() {
-                SingleTextureLoadError::FailedToLoadImage { path, .. } => {
-                    write!(f, "texture {path} failed to load, ")?;
-                }
-            }
-        }
-        write!(f, ")")?;
-        Ok(())
+        )
     }
 }
 
@@ -44,23 +42,29 @@ pub async fn load() -> anyhow::Result<Registry<wgpu::Texture>> {
 
     util::build_registry(textures.into_iter(), |(path, bytes)| async move {
         let identifier = Identifier::new(path);
-
-        let compute = runtimes::compute::exec(closure!(clone identifier, || {
-            let image = image::load_from_memory(bytes)
-                .with_context(|| format!("Reading image for texture {identifier}"))?;
+        match runtimes::compute::exec(move || {
+            let image = image::load_from_memory(bytes).with_context(|| format!("Reading image"))?;
             Ok(states::data_loader::get().load_texture(image))
-        }));
-
-        match compute.await {
+        })
+        .await
+        {
             Err(e) => Err(SingleTextureLoadError::FailedToLoadImage {
                 path: identifier.to_string(),
                 error: e,
             })
-            .with_context(|| format!("Loading texture {identifier}")),
+            .with_context(|| format!("Loading texture {identifier}"))
+            .map_err(|e| (identifier, e)),
 
             Ok(tex) => Ok((Identifier::new(path), tex)),
         }
     })
     .await
+    .inspect_err(|failures| {
+        error!("Errors while these textures");
+
+        for (i, (identifier, error)) in failures.iter().enumerate() {
+            error!("{i}: {identifier}: {error:#}");
+        }
+    })
     .map_err(|failures| TextureLoadError { failures }.into())
 }

@@ -41,7 +41,7 @@ mod window;
 fn main() {
     logging::init();
     if let Err(e) = fail_safe::init() {
-        fatal!("Cannot initialize fail safe: {:#?}", e);
+        fatal!("Cannot initialize fail safe: {:?}", e);
         return;
     }
     crate::info!("Hello, world!");
@@ -56,7 +56,7 @@ fn main() {
                 .block_on(fail_safe::fail_safe_guard(|x| Box::pin(async_main(x))));
 
             if let Err(e) = res {
-                crate::fatal!("Cannot run game: {e:#?}");
+                crate::fatal!("Cannot run game: {e:?}");
             }
 
             crate::info!("Game quited! bye bye UwU");
@@ -254,9 +254,10 @@ async fn async_main(
                         *regs = Some(registries);
                     }
 
-                    Ok(Err(e)) => {
+                    Ok(Err(mut e)) => {
+                        e = e.context("Initializing rest of game");
                         fatal!("Game initialization failed: {e:#}");
-                        return Err(e.context("Initializing rest of game"));
+                        return Err(e);
                     }
 
                     Err(e) => {
