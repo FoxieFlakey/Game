@@ -1,8 +1,8 @@
-use std::{error::Error, time::Duration};
+use std::time::Duration;
 
 use smallvec::SmallVec;
 
-use crate::{events::EventHandleResult, util::error::CustomError};
+use crate::events::EventHandleResult;
 
 pub mod screen_stack;
 
@@ -14,11 +14,11 @@ pub trait Screen: 'static {
         delta_time: Duration,
         output_view: &wgpu::TextureView,
         cmd_encoder_creator: &dyn Fn(&wgpu::CommandEncoderDescriptor) -> wgpu::CommandEncoder,
-    ) -> Result<SmallVec<[wgpu::CommandBuffer; STACK_ALLOCATED_COUNT]>, Box<CustomError<dyn Error>>>;
+    ) -> anyhow::Result<SmallVec<[wgpu::CommandBuffer; STACK_ALLOCATED_COUNT]>>;
 
     fn handle_event(
         &mut self,
         delta_time: Duration,
         event: &sdl3::event::Event,
-    ) -> Result<EventHandleResult, Box<CustomError<dyn Error>>>;
+    ) -> anyhow::Result<EventHandleResult>;
 }

@@ -5,7 +5,6 @@
 #![feature(oneshot_channel)]
 
 use std::{
-    error::Error,
     ffi::CStr,
     num::NonZero,
     pin::Pin,
@@ -13,6 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use anyhow::Context;
 use futures::{FutureExt, future::OptionFuture, poll};
 
 use crate::{
@@ -20,10 +20,6 @@ use crate::{
     registries::Registries,
     rendering::Renderer,
     screen::{Screen, screen_stack::ScreenStack},
-    util::{
-        StringError,
-        error::{CustomError, CustomErrorExt, Printable},
-    },
     window::Window,
 };
 
@@ -45,7 +41,7 @@ mod window;
 fn main() {
     logging::init();
     if let Err(e) = fail_safe::init() {
-        fatal!("Cannot initialize fail safe: {}", Printable(&e));
+        fatal!("Cannot initialize fail safe: {:?}", e);
         return;
     }
     crate::info!("Hello, world!");
@@ -105,10 +101,12 @@ impl Resources {
     }
 }
 
-async fn init() -> Result<Resources, Box<CustomError<dyn Error + 'static>>> {
+async fn init() -> anyhow::Result<Resources> {
     rendering::init().await?;
 
-    let sdl = sdl3::init().map_err(|x| x.context("Initializing SDL library"))?;
+    let sdl = sdl3::init()
+        .context("Initializing SDL library")?;
+    
     info!("SDL3 initialized");
     info!("SDL3 version: {}", sdl3::version::version());
     let revision_string = sdl3::sys::version::SDL_GetRevision();
@@ -124,16 +122,16 @@ async fn init() -> Result<Resources, Box<CustomError<dyn Error + 'static>>> {
         SdlState {
             event: sdl
                 .event()
-                .map_err(|x| x.context("Initializing event subsystem"))?,
+                .context("Initializing event subsystem")?,
             video: sdl
                 .video()
-                .map_err(|x| x.context("Initializing video subsystem"))?,
+                .context("Initializing video subsystem")?,
             audio: sdl
                 .audio()
-                .map_err(|x| x.context("Initializing audio subsystem"))?,
+                .context("Initializing audio subsystem")?,
             event_pump: sdl
                 .event_pump()
-                .map_err(|x| x.context("Creating event pump"))?,
+                .context("Creating event pump")?,
             sdl,
         },
     );
@@ -147,7 +145,7 @@ async fn init() -> Result<Resources, Box<CustomError<dyn Error + 'static>>> {
             .vulkan()
             .position_centered(),
     )
-    .map_err(|x| x.context("Creating main game window"))?;
+    .context("Creating main game window")?;
 
     info!("Game window created");
 
@@ -197,7 +195,7 @@ async fn async_main(
     // from other places (other than SDL3) depends on
     // host system
     quit_request_receiver: impl Fn() -> Pin<Box<dyn Future<Output = ()>>>,
-) -> Result<(), Box<CustomError<dyn Error + 'static>>> {
+) -> anyhow::Result<()> {
     runtimes::init();
     let mut resources = init().await?;
     info!("Minimal game subsystems ready, initializing other resources on background");
@@ -253,7 +251,7 @@ async fn async_main(
                         info!("Game initialization completed!");
                         let mut regs = resources.registries_resource.get_mut();
                         if regs.is_some() {
-                            return Err(StringError::new("Something already initialized the registries?!").into_custom_err().into());
+                            return Err(anyhow::anyhow!("Something already initialized the registries?!"));
                         }
 
                         *regs = Some(registries);
@@ -261,12 +259,12 @@ async fn async_main(
 
                     Ok(Err(e)) => {
                         fatal!("Game initialization failed: {e}");
-                        return Err(StringError::new_with_cause("Failed to init registries", e).into_custom_err().into());
+                        return Err(e.context("Failed to init registries"));
                     }
 
                     Err(e) => {
                         fatal!("Cannot initialize the rest of game: {e}");
-                        return Err(e.context("Initializing rest of game").into());
+                        return Err(anyhow::Error::new(e).context("Initializing rest of game"));
                     }
                 }
             }
@@ -284,7 +282,7 @@ fn handle_input(
     prev_start_of_render: Instant,
     start_of_render: Instant,
     do_quit: &mut bool,
-) -> Result<(), Box<CustomError<dyn Error + 'static>>> {
+) -> anyhow::Result<()> {
     let delta_time = start_of_render - prev_start_of_render;
     let main_window_id = resources.main_resource.get().window.get_id().get();
 
@@ -321,7 +319,7 @@ fn handle_input(
 fn do_render(
     resources: &mut Resources,
     delta_time: Duration,
-) -> Result<(), Box<CustomError<dyn Error + 'static>>> {
+) -> anyhow::Result<()> {
     let mut renderer = resources.renderer_resource.get_mut();
     let Some(permit) = resources
         .main_resource

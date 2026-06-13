@@ -2,10 +2,7 @@ use std::num::NonZero;
 
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
-use crate::{
-    rendering,
-    util::error::{CustomError, CustomErrorExt},
-};
+use crate::rendering;
 
 pub struct Window {
     // This has to be dropped FIRST!
@@ -30,10 +27,10 @@ pub enum CreateWindowError {
 impl Window {
     pub fn new(
         builder: &sdl3::video::WindowBuilder,
-    ) -> Result<Self, CustomError<CreateWindowError>> {
+    ) -> anyhow::Result<Self> {
         let win = builder
             .build()
-            .map_err(|e| CreateWindowError::Create(e).into_custom_err())?;
+            .map_err(CreateWindowError::Create)?;
 
         Ok(Window {
             surface: unsafe {
@@ -43,17 +40,15 @@ impl Window {
                         // dont need this to be Some
                         raw_display_handle: Some(
                             win.display_handle()
-                                .map_err(|e| {
-                                    CreateWindowError::GetDisplayHandle(e).into_custom_err()
-                                })?
+                                .map_err(CreateWindowError::GetDisplayHandle)?
                                 .as_raw(),
                         ),
                         raw_window_handle: win
                             .window_handle()
-                            .map_err(|e| CreateWindowError::GetWindowHandle(e).into_custom_err())?
+                            .map_err(CreateWindowError::GetWindowHandle)?
                             .as_raw(),
                     })
-                    .map_err(|e| CreateWindowError::CreateWgpuSurface(e).into_custom_err())?
+                    .map_err(CreateWindowError::CreateWgpuSurface)?
             },
             win,
         })
@@ -90,7 +85,7 @@ impl Window {
         (w as u32, h as u32)
     }
 
-    pub fn set_visibility(&mut self, is_visible: bool) -> Result<(), CustomError<sdl3::Error>> {
+    pub fn set_visibility(&mut self, is_visible: bool) -> anyhow::Result<()> {
         let result;
         if is_visible {
             result = self.win.show();
@@ -99,7 +94,7 @@ impl Window {
         }
 
         if !result {
-            Err(sdl3::get_error().into_custom_err())
+            Err(sdl3::get_error().into())
         } else {
             Ok(())
         }

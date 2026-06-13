@@ -4,10 +4,7 @@ use crate::{
     registries::util,
     registry::Registry,
     runtimes, states,
-    util::{
-        error::{CustomError, CustomErrorExt},
-        identifier::Identifier,
-    },
+    util::identifier::Identifier,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -16,13 +13,13 @@ pub enum SingleTextureLoadError {
     FailedToLoadImage {
         path: String,
         #[source]
-        error: CustomError<image::ImageError>,
+        error: image::ImageError,
     },
 }
 
 #[derive(thiserror::Error, Debug)]
 pub struct TextureLoadError {
-    pub failures: Vec<CustomError<SingleTextureLoadError>>,
+    pub failures: Vec<anyhow::Error>,
 }
 
 impl Display for TextureLoadError {
@@ -33,7 +30,7 @@ impl Display for TextureLoadError {
             self.failures.len()
         )?;
         for failure in &self.failures {
-            match failure.get_err() {
+            match failure.downcast_ref::<SingleTextureLoadError>().unwrap() {
                 SingleTextureLoadError::FailedToLoadImage { path, error } => {
                     write!(f, "texture {path} failed to load because of '{error}', ")?;
                 }
@@ -44,7 +41,7 @@ impl Display for TextureLoadError {
     }
 }
 
-pub async fn load() -> Result<Registry<wgpu::Texture>, CustomError<TextureLoadError>> {
+pub async fn load() -> anyhow::Result<Registry<wgpu::Texture>> {
     let textures: [(&str, &[u8]); 1] = [("background", include_bytes!("../resources/image.png"))];
 
     util::build_registry(textures.into_iter(), |(path, bytes)| async move {
@@ -57,12 +54,11 @@ pub async fn load() -> Result<Registry<wgpu::Texture>, CustomError<TextureLoadEr
             Err(e) => Err(SingleTextureLoadError::FailedToLoadImage {
                 path: identifier.to_string(),
                 error: e,
-            }
-            .into_custom_err()),
+            }.into()),
 
             Ok(tex) => Ok((Identifier::new(path), tex)),
         }
     })
     .await
-    .map_err(|failures| TextureLoadError { failures }.into_custom_err())
+    .map_err(|failures| TextureLoadError { failures }.into())
 }

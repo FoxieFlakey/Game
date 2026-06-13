@@ -1,12 +1,9 @@
 // This module responsible for looking up GPU suitable for
 // doing rendering in Wgpu words its "adapters"
 
-use std::{error::Error, sync::OnceLock};
+use std::sync::OnceLock;
 
-use crate::{
-    info,
-    util::error::{CustomError, CustomErrorExt},
-};
+use crate::info;
 
 static GPU_LIST: OnceLock<Vec<wgpu::Adapter>> = OnceLock::new();
 
@@ -18,7 +15,7 @@ pub enum GPULookupError {
     GPUListNotInitialized,
 }
 
-pub async fn init() -> Result<(), Box<CustomError<dyn Error + 'static>>> {
+pub async fn init() -> anyhow::Result<()> {
     get_gpus().await;
     Ok(())
 }
@@ -59,14 +56,13 @@ pub async fn get_gpus() -> &'static Vec<wgpu::Adapter> {
 
 pub fn find_gpu(
     compatible_with: &wgpu::Surface<'_>,
-) -> Result<&'static wgpu::Adapter, CustomError<GPULookupError>> {
+) -> anyhow::Result<&'static wgpu::Adapter> {
     Ok(GPU_LIST
         .get()
-        .ok_or(GPULookupError::GPUListNotInitialized)
-        .map_err(|x| x.into_custom_err())?
+        .ok_or(GPULookupError::GPUListNotInitialized)?
         .iter()
         .filter(|x| x.is_surface_supported(compatible_with))
         .next()
-        .ok_or(GPULookupError::ThereIsNoGPU)
-        .map_err(|x| x.into_custom_err())?)
+        .ok_or(GPULookupError::ThereIsNoGPU)?
+    )
 }

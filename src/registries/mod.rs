@@ -1,7 +1,6 @@
-use crate::{
-    registry::Registry,
-    util::error::{CustomError, CustomErrorExt},
-};
+use anyhow::Context;
+
+use crate::registry::Registry;
 
 mod textures;
 mod util;
@@ -15,10 +14,10 @@ pub struct Registries {
 #[derive(Debug, thiserror::Error)]
 pub enum LoadError {
     #[error("failed to load textures")]
-    TextureLoad(#[from] CustomError<textures::TextureLoadError>),
+    TextureLoad(#[from] textures::TextureLoadError),
 }
 
-pub async fn load_registries() -> Result<Registries, CustomError<LoadError>> {
+pub async fn load_registries() -> anyhow::Result<Registries> {
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
     crate::info!("Loading registries");
@@ -26,7 +25,6 @@ pub async fn load_registries() -> Result<Registries, CustomError<LoadError>> {
         textures: textures::load()
             .await
             .inspect(|_| crate::info!("Textures registry loaded!"))
-            .map_err(|e| e.context("loading textures registry"))
-            .map_err(CustomError::convert)?,
+            .context("Loading textures")?,
     })
 }

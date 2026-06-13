@@ -1,8 +1,8 @@
-use std::{error::Error, time::Duration};
+use std::time::Duration;
 
 use smallvec::{SmallVec, smallvec};
 
-use crate::{events::EventHandleResult, screen::Screen, util::error::CustomError};
+use crate::{events::EventHandleResult, screen::Screen};
 
 pub mod component;
 
@@ -19,7 +19,7 @@ impl Screen for UI {
         &mut self,
         delta_time: Duration,
         event: &sdl3::event::Event,
-    ) -> Result<EventHandleResult, Box<CustomError<dyn Error + 'static>>> {
+    ) -> anyhow::Result<EventHandleResult> {
         Ok(EventHandleResult::Pass)
     }
 
@@ -28,10 +28,7 @@ impl Screen for UI {
         delta_time: Duration,
         output_view: &wgpu::TextureView,
         cmd_encoder_creator: &dyn Fn(&wgpu::CommandEncoderDescriptor) -> wgpu::CommandEncoder,
-    ) -> Result<
-        SmallVec<[wgpu::CommandBuffer; crate::screen::STACK_ALLOCATED_COUNT]>,
-        Box<CustomError<dyn Error + 'static>>,
-    > {
+    ) -> anyhow::Result<SmallVec<[wgpu::CommandBuffer; crate::screen::STACK_ALLOCATED_COUNT]>> {
         Ok(smallvec![])
     }
 }

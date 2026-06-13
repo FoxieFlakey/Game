@@ -1,20 +1,14 @@
 use std::{
     cmp,
     collections::VecDeque,
-    error::Error,
     num::{NonZero, NonZeroU32},
     sync::LazyLock,
 };
 
+use anyhow::anyhow;
 use smallvec::SmallVec;
 
-use crate::{
-    rendering::data_loader::DataLoader,
-    util::{
-        StringError,
-        error::{CustomError, CustomErrorExt},
-    },
-};
+use crate::rendering::data_loader::DataLoader;
 
 pub mod buffer;
 pub mod data_loader;
@@ -36,7 +30,7 @@ pub static WGPU: LazyLock<wgpu::Instance> = LazyLock::new(|| {
 
 // Init global stuffs about rendering
 // that is not per renderer
-pub async fn init() -> Result<(), Box<CustomError<dyn Error + 'static>>> {
+pub async fn init() -> anyhow::Result<()> {
     LazyLock::force(&WGPU);
     gpu_lookup::init().await?;
     Ok(())
@@ -89,16 +83,14 @@ pub struct RenderPermit<'a> {
 }
 
 impl Renderer {
-    pub async fn new(gpu: &wgpu::Adapter) -> Result<Self, CustomError<RendererCreateFailed>> {
+    pub async fn new(gpu: &wgpu::Adapter) -> anyhow::Result<Self> {
         let desc = wgpu::DeviceDescriptor {
             ..Default::default()
         };
 
         let (device, queue) = gpu
             .request_device(&desc)
-            .await
-            .map_err(|x| x.into_custom_err())
-            .map_err(CustomError::convert)?;
+            .await?;
 
         Ok(Self {
             device_poller: util::DevicePoller::new(device.clone()),
@@ -189,7 +181,7 @@ impl Renderer {
     pub fn prep_render<'a>(
         &'a mut self,
         surface: &wgpu::Surface<'_>,
-    ) -> Result<Option<RenderPermit<'a>>, CustomError<StringError>> {
+    ) -> anyhow::Result<Option<RenderPermit<'a>>> {
         if self.need_configure {
             self.configure_surface(surface);
             self.need_configure = false;
@@ -198,11 +190,11 @@ impl Renderer {
         let output_surface;
         match surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Lost => {
-                return Err(StringError::new("Device is lost!").into_custom_err());
+                return Err(anyhow!("Device is lost!"));
             }
 
             wgpu::CurrentSurfaceTexture::Validation => {
-                return Err(StringError::new("Validation error occured!").into_custom_err());
+                return Err(anyhow!("Validation error occured!"));
             }
 
             wgpu::CurrentSurfaceTexture::Success(texture) => {

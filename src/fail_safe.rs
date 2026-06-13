@@ -1,21 +1,17 @@
 use std::{
-    error::Error,
     pin::Pin,
     rc::Rc,
     sync::atomic::{AtomicBool, AtomicU32, Ordering},
     time::{Duration, Instant},
 };
 
+use anyhow::{Context, anyhow};
 use tokio::{
     signal::unix::{SignalKind, signal},
     sync::Notify,
 };
 
-use crate::util::{
-    StringError,
-    error::{CustomError, CustomErrorExt},
-    sig_safe,
-};
+use crate::util::sig_safe;
 
 // Maximum of interrupts before hard quit triggered
 const WARN_INTERRUPT_COUNT: u32 = 3;
@@ -70,17 +66,15 @@ fn handle_sig_hardquit() {
     }
 }
 
-pub fn init() -> Result<(), CustomError<Box<dyn Error>>> {
+pub fn init() -> anyhow::Result<()> {
     // Installing quit handling signal early
     // SAFETY: The handler is only calls async-signal-safe functions and does not panics
     unsafe { signal_hook::low_level::register(signal_hook::consts::SIGINT, handle_sig_hardquit) }
-        .map_err(|e| e.into_custom_err())
-        .map_err(CustomError::into_boxed)?;
+        .context("Setting up SIGINT handler")?;
 
     // SAFETY: The handler is only calls async-signal-safe functions and does not panics
     unsafe { signal_hook::low_level::register(signal_hook::consts::SIGTERM, handle_sig_term) }
-        .map_err(|e| e.into_custom_err())
-        .map_err(CustomError::into_boxed)?;
+        .context("Setting up SIGTERM handler")?;
 
     Ok(())
 }
@@ -89,12 +83,12 @@ pub async fn fail_safe_guard(
     main: impl Fn(
         Box<dyn Fn() -> Pin<Box<dyn Future<Output = ()>>>>,
     )
-        -> Pin<Box<dyn Future<Output = Result<(), Box<CustomError<dyn Error + 'static>>>>>>,
-) -> Result<(), Box<CustomError<dyn Error + 'static>>> {
+        -> Pin<Box<dyn Future<Output = anyhow::Result<()>>>>,
+) -> anyhow::Result<()> {
     let mut sigint =
-        signal(SignalKind::interrupt()).map_err(|x| x.context("Installing SIGINT handler"))?;
+        signal(SignalKind::interrupt()).context("Installing tokio side SIGINT handler")?;
     let mut sigterm =
-        signal(SignalKind::terminate()).map_err(|x| x.context("Installing SIGTERM handler"))?;
+        signal(SignalKind::terminate()).context("Installing tokio side SIGINT handler")?;
     let quit_notifier = Rc::new(Notify::new());
     let quit_notifier2 = quit_notifier.clone();
 
@@ -152,7 +146,5 @@ pub async fn fail_safe_guard(
         }
     }
 
-    Err(StringError::new("Hard quit triggered")
-        .into_custom_err()
-        .into())
+    Err(anyhow!("Hard quit triggered"))
 }
