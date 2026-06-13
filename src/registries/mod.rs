@@ -14,7 +14,11 @@ pub struct Registries {
 #[derive(Debug, thiserror::Error)]
 pub enum LoadError {
     #[error("failed to load textures")]
-    TextureLoad(#[from] textures::TextureLoadError),
+    TextureLoad(
+        #[from]
+        #[source]
+        textures::TextureLoadError,
+    ),
 }
 
 pub async fn load_registries() -> anyhow::Result<Registries> {

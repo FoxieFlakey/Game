@@ -88,9 +88,7 @@ impl Renderer {
             ..Default::default()
         };
 
-        let (device, queue) = gpu
-            .request_device(&desc)
-            .await?;
+        let (device, queue) = gpu.request_device(&desc).await?;
 
         Ok(Self {
             device_poller: util::DevicePoller::new(device.clone()),

@@ -82,8 +82,7 @@ pub fn init() -> anyhow::Result<()> {
 pub async fn fail_safe_guard(
     main: impl Fn(
         Box<dyn Fn() -> Pin<Box<dyn Future<Output = ()>>>>,
-    )
-        -> Pin<Box<dyn Future<Output = anyhow::Result<()>>>>,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>>>>,
 ) -> anyhow::Result<()> {
     let mut sigint =
         signal(SignalKind::interrupt()).context("Installing tokio side SIGINT handler")?;

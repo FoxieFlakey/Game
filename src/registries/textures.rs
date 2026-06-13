@@ -1,11 +1,9 @@
 use std::fmt::Display;
 
-use crate::{
-    registries::util,
-    registry::Registry,
-    runtimes, states,
-    util::identifier::Identifier,
-};
+use anyhow::Context;
+use closure::closure;
+
+use crate::{registries::util, registry::Registry, runtimes, states, util::identifier::Identifier};
 
 #[derive(Debug, thiserror::Error)]
 pub enum SingleTextureLoadError {
@@ -13,7 +11,7 @@ pub enum SingleTextureLoadError {
     FailedToLoadImage {
         path: String,
         #[source]
-        error: image::ImageError,
+        error: anyhow::Error,
     },
 }
 
@@ -31,8 +29,8 @@ impl Display for TextureLoadError {
         )?;
         for failure in &self.failures {
             match failure.downcast_ref::<SingleTextureLoadError>().unwrap() {
-                SingleTextureLoadError::FailedToLoadImage { path, error } => {
-                    write!(f, "texture {path} failed to load because of '{error}', ")?;
+                SingleTextureLoadError::FailedToLoadImage { path, .. } => {
+                    write!(f, "texture {path} failed to load, ")?;
                 }
             }
         }
@@ -46,15 +44,19 @@ pub async fn load() -> anyhow::Result<Registry<wgpu::Texture>> {
 
     util::build_registry(textures.into_iter(), |(path, bytes)| async move {
         let identifier = Identifier::new(path);
-        match runtimes::compute::exec(move || {
-            Ok(states::data_loader::get().load_texture(image::load_from_memory(bytes)?))
-        })
-        .await
-        {
+
+        let compute = runtimes::compute::exec(closure!(clone identifier, || {
+            let image = image::load_from_memory(bytes)
+                .with_context(|| format!("Reading image for texture {identifier}"))?;
+            Ok(states::data_loader::get().load_texture(image))
+        }));
+
+        match compute.await {
             Err(e) => Err(SingleTextureLoadError::FailedToLoadImage {
                 path: identifier.to_string(),
                 error: e,
-            }.into()),
+            })
+            .with_context(|| format!("Loading texture {identifier}")),
 
             Ok(tex) => Ok((Identifier::new(path), tex)),
         }

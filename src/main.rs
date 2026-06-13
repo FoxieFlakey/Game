@@ -41,7 +41,7 @@ mod window;
 fn main() {
     logging::init();
     if let Err(e) = fail_safe::init() {
-        fatal!("Cannot initialize fail safe: {:?}", e);
+        fatal!("Cannot initialize fail safe: {:#?}", e);
         return;
     }
     crate::info!("Hello, world!");
@@ -56,7 +56,7 @@ fn main() {
                 .block_on(fail_safe::fail_safe_guard(|x| Box::pin(async_main(x))));
 
             if let Err(e) = res {
-                crate::fatal!("Cannot run game: {e}");
+                crate::fatal!("Cannot run game: {e:#?}");
             }
 
             crate::info!("Game quited! bye bye UwU");
@@ -104,9 +104,8 @@ impl Resources {
 async fn init() -> anyhow::Result<Resources> {
     rendering::init().await?;
 
-    let sdl = sdl3::init()
-        .context("Initializing SDL library")?;
-    
+    let sdl = sdl3::init().context("Initializing SDL library")?;
+
     info!("SDL3 initialized");
     info!("SDL3 version: {}", sdl3::version::version());
     let revision_string = sdl3::sys::version::SDL_GetRevision();
@@ -120,18 +119,10 @@ async fn init() -> anyhow::Result<Resources> {
     let (sdl_resource, accessor) = LocalResource::new(
         "SDL subsystems",
         SdlState {
-            event: sdl
-                .event()
-                .context("Initializing event subsystem")?,
-            video: sdl
-                .video()
-                .context("Initializing video subsystem")?,
-            audio: sdl
-                .audio()
-                .context("Initializing audio subsystem")?,
-            event_pump: sdl
-                .event_pump()
-                .context("Creating event pump")?,
+            event: sdl.event().context("Initializing event subsystem")?,
+            video: sdl.video().context("Initializing video subsystem")?,
+            audio: sdl.audio().context("Initializing audio subsystem")?,
+            event_pump: sdl.event_pump().context("Creating event pump")?,
             sdl,
         },
     );
@@ -149,14 +140,16 @@ async fn init() -> anyhow::Result<Resources> {
 
     info!("Game window created");
 
-    let gpu = window.with_surface(|x| rendering::gpu_lookup::find_gpu(x))?;
+    let gpu = window
+        .with_surface(|x| rendering::gpu_lookup::find_gpu(x))
+        .context("Looking up compatible GPU")?;
     let info = gpu.get_info();
     info!(
         "Using {} for rendering via {} at {}",
         info.name, info.backend, info.device_pci_bus_id
     );
 
-    let mut renderer = Renderer::new(gpu).await?;
+    let mut renderer = Renderer::new(gpu).await.context("Initializing renderer")?;
     let (width, height) = window.get_size();
     let default = NonZero::new(10).unwrap();
     renderer.set_output_size((
@@ -197,7 +190,9 @@ async fn async_main(
     quit_request_receiver: impl Fn() -> Pin<Box<dyn Future<Output = ()>>>,
 ) -> anyhow::Result<()> {
     runtimes::init();
-    let mut resources = init().await?;
+    let mut resources = init()
+        .await
+        .context("Initializing minimal game subsystems")?;
     info!("Minimal game subsystems ready, initializing other resources on background");
 
     let a = runtimes::background::spawn(registries::load_registries());
@@ -221,9 +216,11 @@ async fn async_main(
                 prev_start_of_render,
                 start_of_render,
                 &mut do_quit,
-            )?;
+            )
+            .context("Handling events")?;
 
-            do_render(&mut resources, start_of_render - prev_start_of_render)?;
+            do_render(&mut resources, start_of_render - prev_start_of_render)
+                .context("Rendering game")?;
         }
 
         if do_quit {
@@ -258,13 +255,13 @@ async fn async_main(
                     }
 
                     Ok(Err(e)) => {
-                        fatal!("Game initialization failed: {e}");
-                        return Err(e.context("Failed to init registries"));
+                        fatal!("Game initialization failed: {e:#}");
+                        return Err(e.context("Initializing rest of game"));
                     }
 
                     Err(e) => {
-                        fatal!("Cannot initialize the rest of game: {e}");
-                        return Err(anyhow::Error::new(e).context("Initializing rest of game"));
+                        fatal!("Cannot wait for game initialization task: {e:#}");
+                        return Err(anyhow::Error::new(e).context("Waiting the game initialization task"));
                     }
                 }
             }
@@ -316,10 +313,7 @@ fn handle_input(
     Ok(())
 }
 
-fn do_render(
-    resources: &mut Resources,
-    delta_time: Duration,
-) -> anyhow::Result<()> {
+fn do_render(resources: &mut Resources, delta_time: Duration) -> anyhow::Result<()> {
     let mut renderer = resources.renderer_resource.get_mut();
     let Some(permit) = resources
         .main_resource

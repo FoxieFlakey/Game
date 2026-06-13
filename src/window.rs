@@ -1,5 +1,6 @@
 use std::num::NonZero;
 
+use anyhow::Context;
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 use crate::rendering;
@@ -15,22 +16,26 @@ pub struct Window {
 #[derive(Debug, thiserror::Error)]
 pub enum CreateWindowError {
     #[error("Create window with SDL3 failed: {0}")]
-    Create(sdl3::video::WindowBuildError),
+    Create(
+        #[from]
+        #[source]
+        sdl3::video::WindowBuildError,
+    ),
     #[error("Creating wgpu surface failed: {0}")]
-    CreateWgpuSurface(wgpu::CreateSurfaceError),
+    CreateWgpuSurface(
+        #[from]
+        #[source]
+        wgpu::CreateSurfaceError,
+    ),
     #[error("Cant retrieve window handle: {0}")]
-    GetWindowHandle(raw_window_handle::HandleError),
+    GetWindowHandle(#[source] raw_window_handle::HandleError),
     #[error("Cant retrieve display handle: {0}")]
-    GetDisplayHandle(raw_window_handle::HandleError),
+    GetDisplayHandle(#[source] raw_window_handle::HandleError),
 }
 
 impl Window {
-    pub fn new(
-        builder: &sdl3::video::WindowBuilder,
-    ) -> anyhow::Result<Self> {
-        let win = builder
-            .build()
-            .map_err(CreateWindowError::Create)?;
+    pub fn new(builder: &sdl3::video::WindowBuilder) -> anyhow::Result<Self> {
+        let win = builder.build().context("Building window")?;
 
         Ok(Window {
             surface: unsafe {
@@ -40,12 +45,14 @@ impl Window {
                         // dont need this to be Some
                         raw_display_handle: Some(
                             win.display_handle()
-                                .map_err(CreateWindowError::GetDisplayHandle)?
+                                .map_err(CreateWindowError::GetDisplayHandle)
+                                .context("Getting window's display handle")?
                                 .as_raw(),
                         ),
                         raw_window_handle: win
                             .window_handle()
-                            .map_err(CreateWindowError::GetWindowHandle)?
+                            .map_err(CreateWindowError::GetWindowHandle)
+                            .context("Getting window's window handle")?
                             .as_raw(),
                     })
                     .map_err(CreateWindowError::CreateWgpuSurface)?

@@ -54,15 +54,12 @@ pub async fn get_gpus() -> &'static Vec<wgpu::Adapter> {
     GPU_LIST.get().unwrap()
 }
 
-pub fn find_gpu(
-    compatible_with: &wgpu::Surface<'_>,
-) -> anyhow::Result<&'static wgpu::Adapter> {
+pub fn find_gpu(compatible_with: &wgpu::Surface<'_>) -> anyhow::Result<&'static wgpu::Adapter> {
     Ok(GPU_LIST
         .get()
         .ok_or(GPULookupError::GPUListNotInitialized)?
         .iter()
         .filter(|x| x.is_surface_supported(compatible_with))
         .next()
-        .ok_or(GPULookupError::ThereIsNoGPU)?
-    )
+        .ok_or(GPULookupError::ThereIsNoGPU)?)
 }
