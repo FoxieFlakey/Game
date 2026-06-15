@@ -183,6 +183,27 @@ async fn init() -> anyhow::Result<Resources> {
     })
 }
 
+async fn late_init() -> anyhow::Result<impl FnOnce(&mut Resources) -> anyhow::Result<()>> {
+    info!("Late initializing UI");
+    ui::init()
+        .context("Initializing UI")?;
+    
+    info!("Late initializing registry");
+    let registries = registries::load_registries().await
+        .context("Initializing registries")?;
+    
+    Ok(move |resources: &mut Resources| {
+        let mut regs = resources.registries_resource.get_mut();
+        if regs.is_some() {
+            return Err(anyhow::anyhow!("Something already initialized the registries?!"));
+        }
+
+        *regs = Some(registries);
+        
+        Ok(())
+    })
+}
+
 async fn async_main(
     // Future is ready when a quit request received
     // from other places (other than SDL3) depends on
@@ -195,7 +216,7 @@ async fn async_main(
         .context("Initializing minimal game subsystems")?;
     info!("Minimal game subsystems ready, initializing other resources on background");
 
-    let a = runtimes::background::spawn(registries::load_registries());
+    let a = runtimes::background::spawn(late_init());
     let mut registry_init_handle = OptionFuture::from(Some(a));
 
     // Main game loop
@@ -244,14 +265,13 @@ async fn async_main(
                 registry_init_handle = OptionFuture::from(None);
 
                 match result {
-                    Ok(Ok(registries)) => {
+                    Ok(Ok(on_main_thread)) => {
+                        on_main_thread(&mut resources)
+                            .inspect_err(|x| {
+                                fatal!("Cannot do late init on main thread initialization: ");
+                            })
+                            .context("Executing the late init on main thread")?;
                         info!("Game initialization completed!");
-                        let mut regs = resources.registries_resource.get_mut();
-                        if regs.is_some() {
-                            return Err(anyhow::anyhow!("Something already initialized the registries?!"));
-                        }
-
-                        *regs = Some(registries);
                     }
 
                     Ok(Err(mut e)) => {

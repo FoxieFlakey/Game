@@ -15,6 +15,12 @@ impl UI {
     }
 }
 
+pub fn init() -> anyhow::Result<()> {
+    primitives::init();
+    
+    Ok(())
+}
+
 impl Screen for UI {
     fn handle_event(
         &mut self,
