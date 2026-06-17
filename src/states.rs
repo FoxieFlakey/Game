@@ -35,6 +35,10 @@ define_state!(
     crate::local_resource::Accessor<Option<crate::registries::Registries>>
 );
 
+// Early registry that is initialized and is read only
+// since loaded
+define_state!(early_registries, crate::registries::EarlyRegistries);
+
 // Rendering engine, only accessible from main thread
 define_state!(
     renderer,

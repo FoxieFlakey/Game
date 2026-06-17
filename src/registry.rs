@@ -17,7 +17,7 @@ impl<T> Registry<T> {
         self.map.insert(identifier, data);
     }
 
-    pub fn get(&mut self, identifier: &Identifier) -> Option<&T> {
+    pub fn get(&self, identifier: &Identifier) -> Option<&T> {
         self.map.get(&identifier)
     }
 }

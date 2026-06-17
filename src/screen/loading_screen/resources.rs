@@ -2,13 +2,14 @@ use std::sync::LazyLock;
 
 use glam::{Mat4, Vec2, Vec3};
 
-use crate::{rendering::pipeline::{Pipeline, vertex_buffer_layout}, states, util::static_gpu_buffer};
+use crate::{rendering::pipeline::{Pipeline, vertex_buffer_layout}, states, util::{identifier::Identifier, static_gpu_buffer}};
 
 pub static LOADING_PAW: LazyLock<wgpu::Texture> = LazyLock::new(|| {
-    let texture = image::load_from_memory(include_bytes!("../../resources/Loading paw.png"))
-        .expect("Failed to load paw textures");
-    
-    states::data_loader::get().load_texture(texture)
+    states::early_registries::get()
+        .textures
+        .get(&Identifier::new("loading_paw"))
+        .expect("Cannot find loading paw")
+        .clone()
 });
 
 pub static LOADING_PAW_VIEW: LazyLock<wgpu::TextureView> = LazyLock::new(|| {

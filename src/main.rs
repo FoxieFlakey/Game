@@ -40,6 +40,7 @@ mod ui;
 mod util;
 mod wgpu_async;
 mod window;
+mod resources;
 
 fn main() {
     logging::init();
@@ -171,6 +172,12 @@ async fn init() -> anyhow::Result<Resources> {
     states::surface_format::set(renderer.get_output_format());
     let (renderer_resource, accessor) = LocalResource::new("Rendering engine", renderer);
     states::renderer::set(accessor);
+
+    states::early_registries::set(
+        registries::load_early_registries()
+            .await
+            .context("Loading early registries")?
+    );
 
     let mut stack = ScreenStack::new();
     stack.push_screen(screen::LoadingScreen::new());

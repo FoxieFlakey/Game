@@ -37,13 +37,26 @@ impl Display for TextureLoadError {
     }
 }
 
-pub async fn load() -> anyhow::Result<Registry<wgpu::Texture>> {
-    let textures: [(&str, &[u8]); 1] = [("background", include_bytes!("../resources/image.png"))];
+struct Texture {
+    identifier: Identifier,
+    raw_bytes: &'static [u8]
+}
 
-    util::build_registry(textures.into_iter(), |(path, bytes)| async move {
-        let identifier = Identifier::new(path);
+impl Texture {
+    pub fn new(identifier: &str, bytes: &'static [u8]) -> Self {
+        Self {
+            identifier: Identifier::new(identifier),
+            raw_bytes: bytes
+        }
+    }
+}
+
+async fn load_list(textures: &[Texture]) -> anyhow::Result<Registry<wgpu::Texture>> {
+    util::build_registry(textures.into_iter(), |description| async move {
+        let identifier = description.identifier.clone();
+        let raw_bytes = description.raw_bytes;
         match runtimes::compute::exec(move || {
-            let image = image::load_from_memory(bytes).with_context(|| format!("Reading image"))?;
+            let image = image::load_from_memory(raw_bytes).with_context(|| format!("Reading image"))?;
             Ok(states::data_loader::get().load_texture(image))
         })
         .await
@@ -55,7 +68,7 @@ pub async fn load() -> anyhow::Result<Registry<wgpu::Texture>> {
             .with_context(|| format!("Loading texture {identifier}"))
             .map_err(|e| (identifier, e)),
 
-            Ok(tex) => Ok((Identifier::new(path), tex)),
+            Ok(tex) => Ok((description.identifier.clone(), tex)),
         }
     })
     .await
@@ -68,3 +81,18 @@ pub async fn load() -> anyhow::Result<Registry<wgpu::Texture>> {
     })
     .map_err(|failures| TextureLoadError { failures }.into())
 }
+
+pub async fn load() -> anyhow::Result<Registry<wgpu::Texture>> {
+    load_list(&[
+        Texture::new("background", include_bytes!("image.png"))
+    ]).await
+}
+
+pub async fn early_load() -> anyhow::Result<Registry<wgpu::Texture>> {
+    load_list(&[
+        Texture::new("loading_paw", include_bytes!("Loading paw.png"))
+    ]).await
+}
+
+
+

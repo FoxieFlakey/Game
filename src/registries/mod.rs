@@ -1,9 +1,8 @@
 use anyhow::Context;
 
-use crate::registry::Registry;
+use crate::{registry::Registry, resources};
 
-mod textures;
-mod util;
+pub mod util;
 
 // Contains all builtin registries
 // like textures
@@ -17,7 +16,7 @@ pub enum LoadError {
     TextureLoad(
         #[from]
         #[source]
-        textures::TextureLoadError,
+        resources::textures::TextureLoadError,
     ),
 }
 
@@ -26,9 +25,27 @@ pub async fn load_registries() -> anyhow::Result<Registries> {
 
     crate::info!("Loading registries");
     Ok(Registries {
-        textures: textures::load()
+        textures: resources::textures::load()
             .await
             .inspect(|_| crate::info!("Textures registry loaded!"))
             .context("Loading textures")?,
     })
 }
+
+pub struct EarlyRegistries {
+    pub textures: Registry<wgpu::Texture>,
+}
+
+// Like load_registries but include only bare minimum
+// to initialize minimal subsystems. Such as loading screen
+// resources, etc
+pub async fn load_early_registries() -> anyhow::Result<EarlyRegistries> {
+    crate::info!("Loading early registries");
+    Ok(EarlyRegistries {
+        textures: resources::textures::early_load()
+            .await
+            .inspect(|_| crate::info!("Early textures registry loaded!"))
+            .context("Loading early textures")?,
+    })
+}
+
