@@ -5,6 +5,9 @@ use smallvec::SmallVec;
 use crate::events::EventHandleResult;
 
 pub mod screen_stack;
+pub mod loading_screen;
+
+pub use loading_screen::LoadingScreen;
 
 pub const STACK_ALLOCATED_COUNT: usize = 8;
 

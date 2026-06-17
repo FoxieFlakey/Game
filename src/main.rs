@@ -172,10 +172,13 @@ async fn init() -> anyhow::Result<Resources> {
     let (renderer_resource, accessor) = LocalResource::new("Rendering engine", renderer);
     states::renderer::set(accessor);
 
+    let mut stack = ScreenStack::new();
+    stack.push_screen(screen::LoadingScreen::new());
+
     let (main_resource, accessor) = LocalResource::new(
         "Main state",
         MainState {
-            screen_stack: ScreenStack::new(),
+            screen_stack: stack,
             window,
         },
     );
