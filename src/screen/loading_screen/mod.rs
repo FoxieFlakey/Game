@@ -9,7 +9,7 @@ use crate::{
         buffer::{BufferKind, VecBuf},
         pipeline::VertexBufs,
     },
-    screen::{Screen, loading_screen::resources::LoadingPawInstance},
+    screen::{Screen, loading_screen::loading_paw_model::LoadingPawInstance},
     states,
 };
 
@@ -22,16 +22,36 @@ struct Camera {
 pub struct LoadingScreen {
     _camera_buffer: VecBuf<Camera>,
     camera_bind_group: wgpu::BindGroup,
-    loading_paws: VecBuf<resources::LoadingPawInstance>,
+    loading_paws: VecBuf<loading_paw_model::LoadingPawInstance>,
 }
 
-mod resources;
+mod loading_paw_model;
+
+static CAMERA_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::new(|| {
+    states::main_dev::get().create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: None,
+        entries: &[
+            // The sampler which is required to
+            // get texture's pixels .w.
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                count: None,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+            },
+        ],
+    })
+});
 
 impl LoadingScreen {
     pub fn new() -> Self {
         // Explicitly make sure all of the resources loaded
-        LazyLock::force(&resources::LOADING_PAW);
-        LazyLock::force(&resources::CAMERA_BIND_GROUP_LAYOUT);
+        LazyLock::force(&loading_paw_model::LOADING_PAW);
+        LazyLock::force(&CAMERA_BIND_GROUP_LAYOUT);
 
         let _camera_buffer = VecBuf::new_from_slice(
             states::main_dev::get().clone(),
@@ -65,7 +85,7 @@ impl LoadingScreen {
             camera_bind_group: states::main_dev::get().create_bind_group(
                 &wgpu::BindGroupDescriptor {
                     label: None,
-                    layout: &resources::CAMERA_BIND_GROUP_LAYOUT,
+                    layout: &CAMERA_BIND_GROUP_LAYOUT,
                     entries: &[wgpu::BindGroupEntry {
                         binding: 0,
                         resource: _camera_buffer.as_binding(),
@@ -113,17 +133,17 @@ impl Screen for LoadingScreen {
         });
 
         render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-        resources::LOADING_PAW.bind(&mut render_pass);
-        resources::LOADING_PAW.pipeline.render(
+        loading_paw_model::LOADING_PAW.bind(&mut render_pass);
+        loading_paw_model::LOADING_PAW.pipeline.render(
             &mut render_pass,
             &VertexBufs {
-                buf0: Some(&resources::LOADING_PAW_VERTEX),
+                buf0: Some(&loading_paw_model::LOADING_PAW_VERTEX),
                 buf1: Some(&self.loading_paws),
                 ..Default::default()
             },
-            &resources::LOADING_PAW_INDEX_BUFFER,
+            &loading_paw_model::LOADING_PAW_INDEX_BUFFER,
             0,
-            0u32..resources::LOADING_PAW_INDEX_BUFFER.len() as u32,
+            0u32..loading_paw_model::LOADING_PAW_INDEX_BUFFER.len() as u32,
             0u32..self.loading_paws.len() as u32,
             &[],
         );

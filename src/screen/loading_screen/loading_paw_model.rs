@@ -8,7 +8,7 @@ use crate::{
     util::{identifier::Identifier, static_gpu_buffer},
 };
 
-pub struct LoadingPawResources {
+pub struct LoadingPawModel {
     // These three need to be alive
     // its used indirectly from bind group
     _texture: wgpu::Texture,
@@ -18,7 +18,7 @@ pub struct LoadingPawResources {
     bind_group: wgpu::BindGroup,
 }
 
-impl LoadingPawResources {
+impl LoadingPawModel {
     pub fn new() -> Self {
         let device = states::main_dev::get();
         let texture = states::early_registries::get()
@@ -96,7 +96,7 @@ impl LoadingPawResources {
                         label: Some("Textures and data for 'loading paw' pipeline"),
                         immediate_size: 0,
                         bind_group_layouts: &[
-                            Some(&CAMERA_BIND_GROUP_LAYOUT),
+                            Some(&super::CAMERA_BIND_GROUP_LAYOUT),
                             Some(&bind_group_layout),
                         ],
                     }),
@@ -112,8 +112,8 @@ impl LoadingPawResources {
     }
 }
 
-pub static LOADING_PAW: LazyLock<LoadingPawResources> =
-    LazyLock::new(|| LoadingPawResources::new());
+pub static LOADING_PAW: LazyLock<LoadingPawModel> =
+    LazyLock::new(|| LoadingPawModel::new());
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -157,23 +157,3 @@ static_gpu_buffer!(
         3, 1, 2
     ];
 );
-
-pub static CAMERA_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::new(|| {
-    states::main_dev::get().create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: None,
-        entries: &[
-            // The sampler which is required to
-            // get texture's pixels .w.
-            wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                count: None,
-                visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-            },
-        ],
-    })
-});
