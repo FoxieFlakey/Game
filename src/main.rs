@@ -391,12 +391,7 @@ fn do_render(resources: &mut Resources, delta_time: Duration) -> anyhow::Result<
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            b: 0.2,
-                            g: 0.3,
-                            a: 1.0,
-                        }),
+                        load: wgpu::LoadOp::Load,
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -409,18 +404,15 @@ fn do_render(resources: &mut Resources, delta_time: Duration) -> anyhow::Result<
             cmds.finish()
         };
 
-        let mut cmds = SmallVec::new();
-        cmds.push(commands_for_rectangles);
-        anyhow::Ok(((), cmds))
-        // resources
-        //     .main_resource
-        //     .get_mut()
-        //     .screen_stack
-        //     .render(delta_time, output, encoder_maker)
-        //     .map(|mut cmds| {
-        //         cmds.push(commands_for_rectangles);
-        //         ((), cmds)
-        //     })
+        resources
+            .main_resource
+            .get_mut()
+            .screen_stack
+            .render(delta_time, output, encoder_maker)
+            .map(|mut cmds| {
+                cmds.push(commands_for_rectangles);
+                ((), cmds)
+            })
     })?;
 
     Ok(())
