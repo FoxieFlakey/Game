@@ -100,4 +100,5 @@ pub fn render(render_pass: &mut wgpu::RenderPass, instances: &VecBuf<Instance>) 
 pub fn init() {
     LazyLock::force(&VERTEX_BUFFER);
     LazyLock::force(&INDEX_BUFFER);
+    LazyLock::force(&PIPELINE);
 }
