@@ -53,7 +53,7 @@ impl Screen for ScreenStack {
         let mut result = SmallVec::new();
 
         // Bottom most screen draw first, then top
-        for screen in self.stack.iter_mut().rev() {
+        for screen in self.stack.iter_mut() {
             result.append(&mut screen.render(delta_time, output_view, cmd_encoder_creator)?);
         }
 
