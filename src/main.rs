@@ -14,12 +14,15 @@ use std::{
 
 use anyhow::Context;
 use futures::{FutureExt, future::OptionFuture, poll};
+use glam::{Mat4, Quat, Vec3, Vec4};
+use smallvec::SmallVec;
 
 use crate::{
     local_resource::LocalResource,
     registries::Registries,
     rendering::Renderer,
     screen::{Screen, screen_stack::ScreenStack},
+    util::static_gpu_buffer,
     window::Window,
 };
 
@@ -158,8 +161,14 @@ async fn init() -> anyhow::Result<Resources> {
     ));
     info!("Initialized rendering engine");
 
+    // This is necessary, so renderer can fetch additional
+    // information that cannot be fetched without knowing
+    // the target surface (which has special limitation)
+    window.with_surface(|x| renderer.configure_surface(x));
+
     states::main_dev::set(renderer.get_device().clone());
     states::data_loader::set(renderer.data_loader());
+    states::surface_format::set(renderer.get_output_format());
     let (renderer_resource, accessor) = LocalResource::new("Rendering engine", renderer);
     states::renderer::set(accessor);
 
@@ -185,24 +194,48 @@ async fn init() -> anyhow::Result<Resources> {
 
 async fn late_init() -> anyhow::Result<impl FnOnce(&mut Resources) -> anyhow::Result<()>> {
     info!("Late initializing UI");
-    ui::init()
-        .context("Initializing UI")?;
-    
+    ui::init().context("Initializing UI")?;
+
     info!("Late initializing registry");
-    let registries = registries::load_registries().await
+    let registries = registries::load_registries()
+        .await
         .context("Initializing registries")?;
-    
+
     Ok(move |resources: &mut Resources| {
         let mut regs = resources.registries_resource.get_mut();
         if regs.is_some() {
-            return Err(anyhow::anyhow!("Something already initialized the registries?!"));
+            return Err(anyhow::anyhow!(
+                "Something already initialized the registries?!"
+            ));
         }
 
         *regs = Some(registries);
-        
+
         Ok(())
     })
 }
+
+static_gpu_buffer!(
+    static Vertex RECTANGLES: LazyLock<VecBuf<[ui::primitives::ColoredRectangle]>> => [
+        ui::primitives::ColoredRectangle {
+            color: Vec4::new(0.5, 0.2, 0.2, 1.0),
+            transform: Mat4::from_scale_rotation_translation(
+                Vec3::new(0.2, 0.5, 1.0),
+                Quat::from_rotation_z(30.0_f32.to_radians()),
+                Vec3::new(0.0, -0.4, 0.0)
+            )
+        },
+
+        ui::primitives::ColoredRectangle {
+            color: Vec4::new(0.0, 0.6, 0.2, 1.0),
+            transform: Mat4::from_scale_rotation_translation(
+                Vec3::new(0.2, 0.1, 1.0),
+                Quat::from_rotation_z(50.0_f32.to_radians()),
+                Vec3::new(0.0, 0.4, 0.0)
+            )
+        }
+    ];
+);
 
 async fn async_main(
     // Future is ready when a quit request received
@@ -346,12 +379,48 @@ fn do_render(resources: &mut Resources, delta_time: Duration) -> anyhow::Result<
     };
 
     permit.render(|output, encoder_maker| {
-        resources
-            .main_resource
-            .get_mut()
-            .screen_stack
-            .render(delta_time, output, encoder_maker)
-            .map(|cmds| ((), cmds))
+        let commands_for_rectangles = {
+            let mut cmds = encoder_maker(&wgpu::CommandEncoderDescriptor {
+                label: Some("Draw colored rectangles"),
+            });
+
+            let mut render_pass = cmds.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Draw colored rectangle"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: output,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.1,
+                            b: 0.2,
+                            g: 0.3,
+                            a: 1.0,
+                        }),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                ..Default::default()
+            });
+
+            ui::primitives::render_colored_rectangle(&mut render_pass, &RECTANGLES);
+
+            drop(render_pass);
+            cmds.finish()
+        };
+
+        let mut cmds = SmallVec::new();
+        cmds.push(commands_for_rectangles);
+        anyhow::Ok(((), cmds))
+        // resources
+        //     .main_resource
+        //     .get_mut()
+        //     .screen_stack
+        //     .render(delta_time, output, encoder_maker)
+        //     .map(|mut cmds| {
+        //         cmds.push(commands_for_rectangles);
+        //         ((), cmds)
+        //     })
     })?;
 
     Ok(())

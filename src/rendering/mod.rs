@@ -13,6 +13,7 @@ use crate::rendering::data_loader::DataLoader;
 pub mod buffer;
 pub mod data_loader;
 pub mod gpu_lookup;
+pub mod pipeline;
 pub mod util;
 
 pub static WGPU: LazyLock<wgpu::Instance> = LazyLock::new(|| {
@@ -43,6 +44,7 @@ pub struct Renderer {
     config: Option<wgpu::SurfaceConfiguration>,
     need_configure: bool,
     output_size: (NonZeroU32, NonZeroU32),
+    output_format: Option<wgpu::TextureFormat>,
 
     // per frame data for render aheads
     // where GPU working on N frame while
@@ -98,6 +100,7 @@ impl Renderer {
             config: None,
             need_configure: true,
             output_size: (NonZero::new(10).unwrap(), NonZero::new(10).unwrap()),
+            output_format: None,
             inflight_frames: VecDeque::new(),
             per_frame_data_cache: VecDeque::new(),
             inflight_max_count: 1,
@@ -109,27 +112,32 @@ impl Renderer {
         self.need_configure = true;
     }
 
-    fn configure_surface(&mut self, surface: &wgpu::Surface<'_>) {
+    pub fn configure_surface(&mut self, surface: &wgpu::Surface<'_>) {
         // Surface hasn't been configured
         let device = &self.device;
-        let gpu = &self.gpu;
-        let caps = surface.get_capabilities(gpu);
-        let format = caps
-            .formats
-            .iter()
-            .filter(|x| x.is_srgb())
-            .next()
-            .copied()
-            .unwrap_or_else(|| {
-                crate::warn!(
-                    "cannot find optimal display format using suboptimal {:?} format",
+
+        if self.output_format.is_none() {
+            let gpu = &self.gpu;
+            let caps = surface.get_capabilities(gpu);
+            let format = caps
+                .formats
+                .iter()
+                .filter(|x| x.is_srgb())
+                .next()
+                .copied()
+                .unwrap_or_else(|| {
+                    crate::warn!(
+                        "cannot find optimal display format using suboptimal {:?} format",
+                        caps.formats[0]
+                    );
                     caps.formats[0]
-                );
-                caps.formats[0]
-            });
+                });
+
+            self.output_format = Some(format);
+        }
 
         let new_config = wgpu::SurfaceConfiguration {
-            format,
+            format: self.output_format.unwrap(),
             alpha_mode: wgpu::CompositeAlphaMode::Opaque,
             present_mode: wgpu::PresentMode::AutoNoVsync,
             desired_maximum_frame_latency: 2,
@@ -174,6 +182,11 @@ impl Renderer {
 
     pub fn data_loader(&self) -> DataLoader {
         DataLoader::new(self.device.clone(), self.queue.clone())
+    }
+
+    pub fn get_output_format(&self) -> wgpu::TextureFormat {
+        self.output_format
+            .expect("Renderer hasn't configure the surface, yet")
     }
 
     pub fn prep_render<'a>(

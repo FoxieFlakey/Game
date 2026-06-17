@@ -1,4 +1,4 @@
-use std::{cmp, marker::PhantomData, mem};
+use std::{cmp, marker::PhantomData, mem, ops::RangeBounds};
 
 use crate::rendering::data_loader::DataLoader;
 
@@ -158,5 +158,30 @@ impl<T: Copy + bytemuck::Pod> VecBuf<T> {
         );
 
         old.destroy();
+    }
+
+    // NOTE: DO NOT modify the buffer
+    // it is read-only. If the buffer is
+    // readable. Regardlesss if its writeable
+    // or not
+    //
+    // The slice is in temr of T units
+    pub fn slice<'a, S: RangeBounds<usize>>(&'a self, bounds: S) -> wgpu::BufferSlice<'a> {
+        let start = match bounds.start_bound() {
+            std::ops::Bound::Unbounded => 0,
+            std::ops::Bound::Excluded(&idx) => idx + 1,
+            std::ops::Bound::Included(&idx) => idx,
+        };
+
+        let end = match bounds.end_bound() {
+            std::ops::Bound::Unbounded => self.len,
+            std::ops::Bound::Excluded(&idx) => idx - 1,
+            std::ops::Bound::Included(&idx) => idx,
+        };
+
+        self.buf.slice(
+            (start * size_of::<T>()) as wgpu::BufferAddress
+                ..(end * size_of::<T>()) as wgpu::BufferAddress,
+        )
     }
 }

@@ -17,7 +17,7 @@ impl UI {
 
 pub fn init() -> anyhow::Result<()> {
     primitives::init();
-    
+
     Ok(())
 }
 

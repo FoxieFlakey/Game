@@ -13,13 +13,10 @@ macro_rules! static_gpu_buffer {
                     entries.len()
                 );
                 buf.extend_from_slice($crate::states::data_loader::get(), &entries);
-                
+
                 buf
             });
         )*
     }
 }
 pub(crate) use static_gpu_buffer;
-
-
-

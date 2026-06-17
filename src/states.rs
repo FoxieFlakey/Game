@@ -47,3 +47,6 @@ define_state!(data_loader, crate::rendering::data_loader::DataLoader);
 // wgpu::Device referring to active device
 // it is accessible anywhere
 define_state!(main_dev, wgpu::Device);
+
+// Texture format that renderer will use for lifetime
+define_state!(surface_format, wgpu::TextureFormat);
