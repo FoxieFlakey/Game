@@ -51,13 +51,13 @@ impl LoadingPawResources {
                 },
             ],
         });
-        let _sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             min_filter: wgpu::FilterMode::Nearest,
             mag_filter: wgpu::FilterMode::Nearest,
             mipmap_filter: wgpu::MipmapFilterMode::Nearest,
             ..Default::default()
         });
-        let _view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         // Make these initialized
         LazyLock::force(&LOADING_PAW_INDEX_BUFFER);
@@ -71,11 +71,11 @@ impl LoadingPawResources {
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
-                        resource: wgpu::BindingResource::Sampler(&_sampler),
+                        resource: wgpu::BindingResource::Sampler(&sampler),
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: wgpu::BindingResource::TextureView(&_view),
+                        resource: wgpu::BindingResource::TextureView(&view),
                     },
                 ],
             }),
@@ -102,8 +102,8 @@ impl LoadingPawResources {
                     }),
                 ),
             ),
-            _sampler,
-            _view,
+            _sampler: sampler,
+            _view: view,
         }
     }
 
