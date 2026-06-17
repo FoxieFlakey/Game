@@ -3,7 +3,7 @@ use std::sync::LazyLock;
 use glam::{Mat4, Vec2, Vec3};
 
 use crate::{
-    rendering::pipeline::{Pipeline, vertex_buffer_layout},
+    rendering::{buffer::VecBuf, pipeline::{Pipeline, VertexBufs, vertex_buffer_layout}},
     states,
     util::{identifier::Identifier, static_gpu_buffer},
 };
@@ -107,8 +107,21 @@ impl LoadingPawModel {
         }
     }
 
-    pub fn bind(&self, render_pass: &mut wgpu::RenderPass) {
+    pub fn render(&self, render_pass: &mut wgpu::RenderPass, instances: &VecBuf<LoadingPawInstance>) {
         render_pass.set_bind_group(1, &self.bind_group, &[]);
+        self.pipeline.render(
+            render_pass,
+            &VertexBufs {
+                buf0: Some(&LOADING_PAW_VERTEX),
+                buf1: Some(instances),
+                ..Default::default()
+            },
+            &LOADING_PAW_INDEX_BUFFER,
+            0,
+            0u32..LOADING_PAW_INDEX_BUFFER.len() as u32,
+            0u32..instances.len() as u32,
+            &[],
+        );
     }
 }
 
@@ -141,7 +154,7 @@ vertex_buffer_layout!(LoadingPawInstance as Instance => [
 ]);
 
 static_gpu_buffer!(
-    pub static Vertex LOADING_PAW_VERTEX: LazyLock<VecBuf<[Vertex]>> => [
+    static Vertex LOADING_PAW_VERTEX: LazyLock<VecBuf<[Vertex]>> => [
         // Bottom left
         Vertex { coord: Vec3 { x: -0.5, y: -0.5, z: 0.0 }, tex_coord: Vec2 { x: 0.0, y: 1.0 } },
         // Bottom right
@@ -152,7 +165,7 @@ static_gpu_buffer!(
         Vertex { coord: Vec3 { x: -0.5, y:  0.5, z: 0.0 }, tex_coord: Vec2 { x: 0.0, y: 0.0 } },
     ];
 
-    pub static Index LOADING_PAW_INDEX_BUFFER: LazyLock<VecBuf<[u16]>> => [
+    static Index LOADING_PAW_INDEX_BUFFER: LazyLock<VecBuf<[u16]>> => [
         0, 1, 3,
         3, 1, 2
     ];

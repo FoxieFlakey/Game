@@ -5,10 +5,7 @@ use smallvec::smallvec;
 
 use crate::{
     events::EventHandleResult,
-    rendering::{
-        buffer::{BufferKind, VecBuf},
-        pipeline::VertexBufs,
-    },
+    rendering::buffer::{BufferKind, VecBuf},
     screen::{Screen, loading_screen::loading_paw_model::LoadingPawInstance},
     states,
 };
@@ -133,19 +130,9 @@ impl Screen for LoadingScreen {
         });
 
         render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-        loading_paw_model::LOADING_PAW.bind(&mut render_pass);
-        loading_paw_model::LOADING_PAW.pipeline.render(
+        loading_paw_model::LOADING_PAW.render(
             &mut render_pass,
-            &VertexBufs {
-                buf0: Some(&loading_paw_model::LOADING_PAW_VERTEX),
-                buf1: Some(&self.loading_paws),
-                ..Default::default()
-            },
-            &loading_paw_model::LOADING_PAW_INDEX_BUFFER,
-            0,
-            0u32..loading_paw_model::LOADING_PAW_INDEX_BUFFER.len() as u32,
-            0u32..self.loading_paws.len() as u32,
-            &[],
+            &self.loading_paws
         );
 
         drop(render_pass);
