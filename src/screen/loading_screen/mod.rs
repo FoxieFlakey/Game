@@ -20,6 +20,9 @@ pub struct LoadingScreen {
     _camera_buffer: VecBuf<Camera>,
     camera_bind_group: wgpu::BindGroup,
     loading_paws: VecBuf<loading_paw_model::LoadingPawInstance>,
+    rotation_deg: f32,
+    scale: Vec3,
+    translation: Vec3
 }
 
 mod loading_paw_model;
@@ -59,26 +62,21 @@ impl LoadingScreen {
             }],
         );
 
+        let mut loading_paws = VecBuf::new_with_initial_capacity(
+            states::main_dev::get().clone(),
+            BufferKind::Vertex,
+            1
+        );
+        loading_paws.resize(states::data_loader::get(), 1);
+        
         Self {
-            loading_paws: VecBuf::new_from_slice(
-                states::main_dev::get().clone(),
-                states::data_loader::get(),
-                BufferKind::Vertex,
-                &[
-                    // A single loading paw at bottom right
-                    LoadingPawInstance {
-                        transform: Mat4::from_scale_rotation_translation(
-                            Vec3::splat(64.0),
-                            Quat::IDENTITY,
-                            Vec3 {
-                                y: 32.0,
-                                x: 1280.0 - 32.0,
-                                z: 0.0,
-                            },
-                        ),
-                    },
-                ],
-            ),
+            loading_paws,
+            scale: Vec3::splat(120.0),
+            translation: Vec3 {
+                y: 70.0,
+                x: 1280.0 - 70.0,
+                z: 0.0,
+            },
             camera_bind_group: states::main_dev::get().create_bind_group(
                 &wgpu::BindGroupDescriptor {
                     label: None,
@@ -90,6 +88,7 @@ impl LoadingScreen {
                 },
             ),
             _camera_buffer,
+            rotation_deg: 0.0,
         }
     }
 }
@@ -105,11 +104,21 @@ impl Screen for LoadingScreen {
 
     fn render(
         &mut self,
-        _delta_time: std::time::Duration,
+        delta_time: std::time::Duration,
         output_view: &wgpu::TextureView,
         cmd_encoder_creator: &dyn Fn(&wgpu::CommandEncoderDescriptor) -> wgpu::CommandEncoder,
     ) -> anyhow::Result<smallvec::SmallVec<[wgpu::CommandBuffer; super::STACK_ALLOCATED_COUNT]>>
     {
+        self.rotation_deg -= delta_time.as_secs_f32() * 160.0;
+        
+        self.loading_paws.set(0, states::data_loader::get(), &LoadingPawInstance {
+            transform: Mat4::from_scale_rotation_translation(
+                self.scale,
+                Quat::from_rotation_z(self.rotation_deg.to_radians()),
+                self.translation
+            )
+        });
+        
         let mut encoder = cmd_encoder_creator(&wgpu::CommandEncoderDescriptor::default());
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
