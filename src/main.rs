@@ -268,7 +268,7 @@ async fn async_main(
                     Ok(Ok(on_main_thread)) => {
                         on_main_thread(&mut resources)
                             .inspect_err(|x| {
-                                fatal!("Cannot do late init on main thread initialization: ");
+                                fatal!("Cannot do late init on main thread initialization: {x}");
                             })
                             .context("Executing the late init on main thread")?;
                         info!("Game initialization completed!");
