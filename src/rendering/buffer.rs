@@ -86,6 +86,11 @@ impl<T: Copy + bytemuck::Pod> VecBuf<T> {
         data_loader.write_buffer(&self.buf, 0, bytemuck::cast_slice(data));
     }
 
+    pub fn set(&mut self, index: usize, data_loader: &DataLoader, data: &T) {
+        assert!(index < self.len, "Attempt to write over the bound");
+        data_loader.write_buffer(&self.buf, u64::try_from(index * size_of::<T>()).unwrap(), bytemuck::bytes_of(data));
+    }
+
     pub fn extend_from_slice(&mut self, data_loader: &DataLoader, data: &[T]) {
         self.check_capacity(data_loader, self.len() + data.len());
 
@@ -183,5 +188,20 @@ impl<T: Copy + bytemuck::Pod> VecBuf<T> {
             (start * size_of::<T>()) as wgpu::BufferAddress
                 ..(end * size_of::<T>()) as wgpu::BufferAddress,
         )
+    }
+    
+    pub fn new_from_slice(
+        device: wgpu::Device,
+        data_loader: &DataLoader,
+        kind: BufferKind,
+        data: &[T]
+    ) -> Self {
+        let mut buf = Self::new_with_initial_capacity(device, kind, data.len());
+        buf.extend_from_slice(data_loader, data);
+        buf
+    }
+    
+    pub fn as_binding<'a>(&'a self) -> wgpu::BindingResource<'a> {
+        self.buf.as_entire_binding()
     }
 }

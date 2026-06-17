@@ -109,13 +109,8 @@ impl<
         fragment_shader: &wgpu::ShaderModule,
         fragment_shader_entry: Option<&str>,
         fragment_targets: &[Option<wgpu::ColorTargetState>],
+        pipeline_layout: Option<&wgpu::PipelineLayout>,
     ) -> Self {
-        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Pipeline layout"),
-            bind_group_layouts: &[],
-            immediate_size: 0,
-        });
-
         let mut bufs = SmallVec::<[_; 8]>::new();
 
         macro_rules! append_layout {
@@ -142,7 +137,7 @@ impl<
             _phantom: PhantomData,
             pipeline: device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some("Pipeline"),
-                layout: Some(&layout),
+                layout: pipeline_layout,
                 vertex: wgpu::VertexState {
                     module: vertex_shader,
                     entry_point: vertex_shader_entry,

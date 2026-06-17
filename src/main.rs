@@ -281,9 +281,11 @@ async fn late_init() -> anyhow::Result<impl FnOnce(&mut Resources) -> anyhow::Re
         }
 
         // Lets display the glory rectangles :>
-        resources.main_resource.get_mut()
-            .screen_stack
-            .push_screen(Rect);
+        let stack = &mut resources.main_resource.get_mut()
+            .screen_stack;
+        
+        stack.pop_screen();
+        stack.push_screen(Rect);
         
         Ok(())
     })
