@@ -4,8 +4,8 @@ use smallvec::SmallVec;
 
 use crate::events::EventHandleResult;
 
-pub mod screen_stack;
 pub mod loading_screen;
+pub mod screen_stack;
 
 pub use loading_screen::LoadingScreen;
 

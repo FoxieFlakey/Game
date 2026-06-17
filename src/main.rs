@@ -33,6 +33,7 @@ mod logging;
 mod registries;
 mod registry;
 mod rendering;
+mod resources;
 mod runtimes;
 mod screen;
 mod states;
@@ -40,7 +41,6 @@ mod ui;
 mod util;
 mod wgpu_async;
 mod window;
-mod resources;
 
 fn main() {
     logging::init();
@@ -176,7 +176,7 @@ async fn init() -> anyhow::Result<Resources> {
     states::early_registries::set(
         registries::load_early_registries()
             .await
-            .context("Loading early registries")?
+            .context("Loading early registries")?,
     );
 
     let mut stack = ScreenStack::new();
@@ -222,22 +222,23 @@ async fn late_init() -> anyhow::Result<impl FnOnce(&mut Resources) -> anyhow::Re
         *regs = Some(registries);
 
         struct Rect;
-        
+
         impl screen::Screen for Rect {
             fn handle_event(
                 &mut self,
                 _delta_time: Duration,
                 _event: &sdl3::event::Event,
-            ) -> anyhow::Result<events::EventHandleResult>
-            {
+            ) -> anyhow::Result<events::EventHandleResult> {
                 Ok(events::EventHandleResult::Pass)
             }
-            
+
             fn render(
                 &mut self,
                 _delta_time: Duration,
                 output_view: &wgpu::TextureView,
-                cmd_encoder_creator: &dyn Fn(&wgpu::CommandEncoderDescriptor) -> wgpu::CommandEncoder,
+                cmd_encoder_creator: &dyn Fn(
+                    &wgpu::CommandEncoderDescriptor,
+                ) -> wgpu::CommandEncoder,
             ) -> anyhow::Result<SmallVec<[wgpu::CommandBuffer; screen::STACK_ALLOCATED_COUNT]>>
             {
                 static_gpu_buffer!(
@@ -283,17 +284,16 @@ async fn late_init() -> anyhow::Result<impl FnOnce(&mut Resources) -> anyhow::Re
                 ui::primitives::render_colored_rectangle(&mut render_pass, &RECTANGLES);
 
                 drop(render_pass);
-                Ok(smallvec::smallvec![ cmd_buf.finish() ])
+                Ok(smallvec::smallvec![cmd_buf.finish()])
             }
         }
 
         // Lets display the glory rectangles :>
-        let stack = &mut resources.main_resource.get_mut()
-            .screen_stack;
-        
+        let stack = &mut resources.main_resource.get_mut().screen_stack;
+
         stack.pop_screen();
         stack.push_screen(Rect);
-        
+
         Ok(())
     })
 }

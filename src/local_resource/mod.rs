@@ -80,11 +80,10 @@ impl<T> Accessor<T> {
         self.with_impl(caller, move |cell| {
             let reference = cell.try_borrow()
                 .expect(format!("Caller {caller} attempted to borrow resource while its mutably borrowed (both is on same thread)").as_str());
-            
             closure(&reference)
         })
     }
-    
+
     #[track_caller]
     pub fn with_mut<R, F>(&self, closure: F) -> impl Future<Output = R>
     where
@@ -95,12 +94,15 @@ impl<T> Accessor<T> {
         self.with_impl(caller, move |cell| {
             let mut reference = cell.try_borrow_mut()
                 .expect(format!("Caller {caller} attempted to borrow mutably resource while its borrowed (either mut/immutable) (both is on same thread)").as_str());
-            
             closure(&mut reference)
         })
     }
-    
-    fn with_impl<R, F>(&self, caller: &'static Location<'static>, closure: F) -> impl Future<Output = R>
+
+    fn with_impl<R, F>(
+        &self,
+        caller: &'static Location<'static>,
+        closure: F,
+    ) -> impl Future<Output = R>
     where
         R: Send + 'static,
         F: FnOnce(&RefCell<T>) -> R + Send + 'static,

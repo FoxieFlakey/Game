@@ -48,4 +48,3 @@ pub async fn load_early_registries() -> anyhow::Result<EarlyRegistries> {
             .context("Loading early textures")?,
     })
 }
-

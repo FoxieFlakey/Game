@@ -39,14 +39,14 @@ impl Display for TextureLoadError {
 
 struct Texture {
     identifier: Identifier,
-    raw_bytes: &'static [u8]
+    raw_bytes: &'static [u8],
 }
 
 impl Texture {
     pub fn new(identifier: &str, bytes: &'static [u8]) -> Self {
         Self {
             identifier: Identifier::new(identifier),
-            raw_bytes: bytes
+            raw_bytes: bytes,
         }
     }
 }
@@ -56,7 +56,8 @@ async fn load_list(textures: &[Texture]) -> anyhow::Result<Registry<wgpu::Textur
         let identifier = description.identifier.clone();
         let raw_bytes = description.raw_bytes;
         match runtimes::compute::exec(move || {
-            let image = image::load_from_memory(raw_bytes).with_context(|| format!("Reading image"))?;
+            let image =
+                image::load_from_memory(raw_bytes).with_context(|| format!("Reading image"))?;
             Ok(states::data_loader::get().load_texture(image))
         })
         .await
@@ -83,16 +84,13 @@ async fn load_list(textures: &[Texture]) -> anyhow::Result<Registry<wgpu::Textur
 }
 
 pub async fn load() -> anyhow::Result<Registry<wgpu::Texture>> {
-    load_list(&[
-        Texture::new("background", include_bytes!("image.png"))
-    ]).await
+    load_list(&[Texture::new("background", include_bytes!("image.png"))]).await
 }
 
 pub async fn early_load() -> anyhow::Result<Registry<wgpu::Texture>> {
-    load_list(&[
-        Texture::new("loading_paw", include_bytes!("Loading paw.png"))
-    ]).await
+    load_list(&[Texture::new(
+        "loading_paw",
+        include_bytes!("Loading paw.png"),
+    )])
+    .await
 }
-
-
-
