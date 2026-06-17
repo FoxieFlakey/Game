@@ -132,14 +132,22 @@ pub fn init() {
         }
 
         fn log(&self, record: &log::Record) {
-            // wgpu_hal is noisy in maximum level
-            // its downgraded to info
+            // noisy ones are downgraded to info
             static INFO_LEVEL_MOD_PREFIX: [&str; 3] = ["wgpu_hal", "wgpu_core", "naga"];
+            // wgpu_hal is noisy in any level, mute it
+            static MUTE_MOD_PREFIX: [&str; 1] = ["wgpu_hal"];
 
             let mod_name = record.module_path().unwrap_or("<unknown module>");
             for entry in INFO_LEVEL_MOD_PREFIX {
                 // Was forced to be info level
                 if mod_name.starts_with(entry) && record.level() > log::Level::Info {
+                    return;
+                }
+            }
+            
+            for entry in MUTE_MOD_PREFIX {
+                // Mute a module
+                if mod_name.starts_with(entry) {
                     return;
                 }
             }
