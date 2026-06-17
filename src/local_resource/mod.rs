@@ -59,14 +59,14 @@ impl<T> Shared<T> {
 
 pub struct LocalResource<T> {
     shared: Arc<Shared<T>>,
-    request_receiver: mpsc::Receiver<Box<dyn FnOnce(&T) + Send>>,
+    request_receiver: mpsc::Receiver<Box<dyn FnOnce(&RefCell<T>) + Send>>,
     _not_send_sync: PhantomData<*mut u8>,
 }
 
 #[derive(Clone)]
 pub struct Accessor<T> {
     shared: Arc<Shared<T>>,
-    request_sender: mpsc::Sender<Box<dyn FnOnce(&T) + Send>>,
+    request_sender: mpsc::Sender<Box<dyn FnOnce(&RefCell<T>) + Send>>,
 }
 
 impl<T> Accessor<T> {
@@ -77,6 +77,34 @@ impl<T> Accessor<T> {
         F: FnOnce(&T) -> R + Send + 'static,
     {
         let caller = Location::caller();
+        self.with_impl(caller, move |cell| {
+            let reference = cell.try_borrow()
+                .expect(format!("Caller {caller} attempted to borrow resource while its mutably borrowed (both is on same thread)").as_str());
+            
+            closure(&reference)
+        })
+    }
+    
+    #[track_caller]
+    pub fn with_mut<R, F>(&self, closure: F) -> impl Future<Output = R>
+    where
+        R: Send + 'static,
+        F: FnOnce(&mut T) -> R + Send + 'static,
+    {
+        let caller = Location::caller();
+        self.with_impl(caller, move |cell| {
+            let mut reference = cell.try_borrow_mut()
+                .expect(format!("Caller {caller} attempted to borrow mutably resource while its borrowed (either mut/immutable) (both is on same thread)").as_str());
+            
+            closure(&mut reference)
+        })
+    }
+    
+    fn with_impl<R, F>(&self, caller: &'static Location<'static>, closure: F) -> impl Future<Output = R>
+    where
+        R: Send + 'static,
+        F: FnOnce(&RefCell<T>) -> R + Send + 'static,
+    {
         if self.shared.is_shutdown.load(Ordering::Relaxed) {
             crate::warn!("Attempting to access resource that is gone");
             crate::warn!("Called by {caller}");
@@ -85,9 +113,7 @@ impl<T> Accessor<T> {
 
         async move {
             if self.shared.owning_thread == thread::current_id() {
-                let reference = &self.shared.get_data().try_borrow()
-                    .expect(format!("Caller {caller} attempted to borrow resource while its mutably borrowed (both is on same thread)").as_str());
-                return closure(reference);
+                return closure(self.shared.get_data());
             }
 
             let (sender, receiver) = oneshot::channel();
@@ -179,8 +205,7 @@ impl<T> LocalResource<T> {
                 return;
             };
 
-            let reference = self.get();
-            req(&reference)
+            req(self.shared.get_data())
         }
     }
 }

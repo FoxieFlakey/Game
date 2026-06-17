@@ -211,31 +211,80 @@ async fn late_init() -> anyhow::Result<impl FnOnce(&mut Resources) -> anyhow::Re
 
         *regs = Some(registries);
 
+        struct Rect;
+        
+        impl screen::Screen for Rect {
+            fn handle_event(
+                &mut self,
+                _delta_time: Duration,
+                _event: &sdl3::event::Event,
+            ) -> anyhow::Result<events::EventHandleResult>
+            {
+                Ok(events::EventHandleResult::Pass)
+            }
+            
+            fn render(
+                &mut self,
+                _delta_time: Duration,
+                output_view: &wgpu::TextureView,
+                cmd_encoder_creator: &dyn Fn(&wgpu::CommandEncoderDescriptor) -> wgpu::CommandEncoder,
+            ) -> anyhow::Result<SmallVec<[wgpu::CommandBuffer; screen::STACK_ALLOCATED_COUNT]>>
+            {
+                static_gpu_buffer!(
+                    static Vertex RECTANGLES: LazyLock<VecBuf<[ui::primitives::ColoredRectangle]>> => [
+                        ui::primitives::ColoredRectangle {
+                            color: Vec4::new(0.5, 0.2, 0.2, 1.0),
+                            transform: Mat4::from_scale_rotation_translation(
+                                Vec3::new(0.2, 0.5, 1.0),
+                                Quat::from_rotation_z(30.0_f32.to_radians()),
+                                Vec3::new(0.0, -0.4, 0.0)
+                            )
+                        },
+
+                        ui::primitives::ColoredRectangle {
+                            color: Vec4::new(0.0, 0.6, 0.2, 1.0),
+                            transform: Mat4::from_scale_rotation_translation(
+                                Vec3::new(0.2, 0.1, 1.0),
+                                Quat::from_rotation_z(50.0_f32.to_radians()),
+                                Vec3::new(0.0, 0.4, 0.0)
+                            )
+                        }
+                    ];
+                );
+
+                let mut cmd_buf = cmd_encoder_creator(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Draw colored rectangles"),
+                });
+
+                let mut render_pass = cmd_buf.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("Draw colored rectangle"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: output_view,
+                        depth_slice: None,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Load,
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    ..Default::default()
+                });
+
+                ui::primitives::render_colored_rectangle(&mut render_pass, &RECTANGLES);
+
+                drop(render_pass);
+                Ok(smallvec::smallvec![ cmd_buf.finish() ])
+            }
+        }
+
+        // Lets display the glory rectangles :>
+        resources.main_resource.get_mut()
+            .screen_stack
+            .push_screen(Rect);
+        
         Ok(())
     })
 }
-
-static_gpu_buffer!(
-    static Vertex RECTANGLES: LazyLock<VecBuf<[ui::primitives::ColoredRectangle]>> => [
-        ui::primitives::ColoredRectangle {
-            color: Vec4::new(0.5, 0.2, 0.2, 1.0),
-            transform: Mat4::from_scale_rotation_translation(
-                Vec3::new(0.2, 0.5, 1.0),
-                Quat::from_rotation_z(30.0_f32.to_radians()),
-                Vec3::new(0.0, -0.4, 0.0)
-            )
-        },
-
-        ui::primitives::ColoredRectangle {
-            color: Vec4::new(0.0, 0.6, 0.2, 1.0),
-            transform: Mat4::from_scale_rotation_translation(
-                Vec3::new(0.2, 0.1, 1.0),
-                Quat::from_rotation_z(50.0_f32.to_radians()),
-                Vec3::new(0.0, 0.4, 0.0)
-            )
-        }
-    ];
-);
 
 async fn async_main(
     // Future is ready when a quit request received
@@ -379,40 +428,12 @@ fn do_render(resources: &mut Resources, delta_time: Duration) -> anyhow::Result<
     };
 
     permit.render(|output, encoder_maker| {
-        let commands_for_rectangles = {
-            let mut cmds = encoder_maker(&wgpu::CommandEncoderDescriptor {
-                label: Some("Draw colored rectangles"),
-            });
-
-            let mut render_pass = cmds.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Draw colored rectangle"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: output,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                ..Default::default()
-            });
-
-            ui::primitives::render_colored_rectangle(&mut render_pass, &RECTANGLES);
-
-            drop(render_pass);
-            cmds.finish()
-        };
-
         resources
             .main_resource
             .get_mut()
             .screen_stack
             .render(delta_time, output, encoder_maker)
-            .map(|mut cmds| {
-                cmds.push(commands_for_rectangles);
-                ((), cmds)
-            })
+            .map(|cmds| ((), cmds))
     })?;
 
     Ok(())
