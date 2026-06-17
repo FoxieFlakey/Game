@@ -59,12 +59,7 @@ static_gpu_buffer!(
 
 static PIPELINE: LazyLock<Pipeline<u16, Vertex, Instance>> = LazyLock::new(|| {
     let device = states::main_dev::get();
-    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("Shader for colored rectangle"),
-        source: wgpu::ShaderSource::Wgsl(
-            include_str!("../../../resources/colored_rectangle_shader.wgsl").into(),
-        ),
-    });
+    let shader = device.create_shader_module(wgpu::include_wgsl!("../../../resources/colored_rectangle_shader.wgsl"));
 
     Pipeline::new(
         device,
