@@ -49,6 +49,8 @@ pub struct Renderer {
     device: wgpu::Device,
     gpu: wgpu::Adapter,
     config: Option<wgpu::SurfaceConfiguration>,
+    // Implies need_update_frame_cache to be true
+    // even need_update_frame_cache is false
     need_configure: bool,
     output_size: (NonZeroU32, NonZeroU32),
     output_format: Option<wgpu::TextureFormat>,
@@ -67,6 +69,8 @@ pub struct Renderer {
     device_poller: util::DevicePoller,
     frame_blitter: OnceCell<FrameBlitter>,
     blit_shader: Option<wgpu::ShaderModule>,
+    render_size: (NonZeroU32, NonZeroU32),
+    need_update_frame_cache: bool,
 }
 
 struct InFlightFrame {
@@ -91,6 +95,8 @@ impl Renderer {
     pub async fn new(
         gpu: &wgpu::Adapter,
         render_format: wgpu::TextureFormat,
+        render_width: NonZeroU32,
+        render_height: NonZeroU32,
     ) -> anyhow::Result<Self> {
         let desc = wgpu::DeviceDescriptor {
             ..Default::default()
@@ -113,12 +119,19 @@ impl Renderer {
             inflight_max_count: 1,
             blit_shader: None,
             render_format,
+            render_size: (render_width, render_height),
+            need_update_frame_cache: false,
         })
     }
 
     pub fn set_output_size(&mut self, size: (NonZeroU32, NonZeroU32)) {
         self.output_size = size;
         self.need_configure = true;
+    }
+
+    pub fn set_render_size(&mut self, size: (NonZeroU32, NonZeroU32)) {
+        self.render_size = size;
+        self.need_update_frame_cache = true;
     }
 
     pub fn set_blit_shader(&mut self, shader: &wgpu::ShaderModule) {
@@ -201,8 +214,12 @@ impl Renderer {
                             | wgpu::TextureUsages::TEXTURE_BINDING,
                         size: wgpu::Extent3d {
                             depth_or_array_layers: 1,
-                            height: new_surface_config.height,
-                            width: new_surface_config.width,
+                            // Unlike the previous appearance of new_surface_config.format
+                            // this is mean to be render size. NOT the presentation size
+                            //
+                            // Which may be smaller/larger than actual presentation
+                            height: self.render_size.1.get(),
+                            width: self.render_size.0.get(),
                         },
                         // Unlike the previous appearance of new_surface_config.format
                         // this is mean to be render format. NOT the presentation format
@@ -223,6 +240,11 @@ impl Renderer {
         if self.need_configure {
             self.configure_surface(surface);
             self.need_configure = false;
+        }
+
+        if self.need_update_frame_cache {
+            self.update_frame_data_caches(&self.config.clone().unwrap());
+            self.need_update_frame_cache = false;
         }
 
         let output_surface;

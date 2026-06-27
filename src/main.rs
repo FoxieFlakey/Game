@@ -151,9 +151,14 @@ async fn init() -> anyhow::Result<Resources> {
     );
 
     let render_format = wgpu::TextureFormat::Rgba16Float;
-    let mut renderer = Renderer::new(gpu, render_format)
-        .await
-        .context("Initializing renderer")?;
+    let mut renderer = Renderer::new(
+        gpu,
+        render_format,
+        NonZero::new(100).unwrap(),
+        NonZero::new(200).unwrap(),
+    )
+    .await
+    .context("Initializing renderer")?;
     let (width, height) = window.get_size();
     let default = NonZero::new(10).unwrap();
     renderer.set_output_size((
