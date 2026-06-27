@@ -89,8 +89,8 @@ pub async fn load() -> anyhow::Result<Registry<wgpu::Texture>> {
 
 pub async fn early_load() -> anyhow::Result<Registry<wgpu::Texture>> {
     load_list(&[Texture::new(
-        "loading_paw",
-        include_bytes!("Loading paw.png"),
+        "loading_icon",
+        include_bytes!("loading_icon.png"),
     )])
     .await
 }

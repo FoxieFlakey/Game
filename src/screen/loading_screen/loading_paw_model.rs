@@ -23,7 +23,7 @@ impl LoadingPawModel {
         let device = states::main_dev::get();
         let texture = states::early_registries::get()
             .textures
-            .get(&Identifier::new("loading_paw"))
+            .get(&Identifier::new("loading_icon"))
             .expect("Cannot find loading paw");
         let shader =
             device.create_shader_module(wgpu::include_wgsl!("../../resources/loading_screen.wgsl"));
