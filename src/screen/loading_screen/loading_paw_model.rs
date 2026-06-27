@@ -14,7 +14,7 @@ pub struct LoadingPawModel {
     _texture: wgpu::Texture,
     _view: wgpu::TextureView,
     _sampler: wgpu::Sampler,
-    pub pipeline: Pipeline<u16, Vertex, LoadingPawInstance>,
+    pipeline: Pipeline<u16, Vertex, LoadingPawInstance>,
     bind_group: wgpu::BindGroup,
 }
 
