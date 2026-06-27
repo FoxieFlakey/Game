@@ -159,21 +159,24 @@ async fn init() -> anyhow::Result<Resources> {
     ));
     info!("Initialized rendering engine");
 
-    // This is necessary, so renderer can fetch additional
-    // information that cannot be fetched without knowing
-    // the target surface (which has special limitation)
-    window.with_surface(|x| renderer.configure_surface(x));
-
     states::main_dev::set(renderer.get_device().clone());
     states::data_loader::set(renderer.data_loader());
-    states::surface_format::set(renderer.get_output_format());
-    let (renderer_resource, accessor) = LocalResource::new("Rendering engine", renderer);
+    states::surface_format::set(wgpu::TextureFormat::Bgra8UnormSrgb);
+    let (mut renderer_resource, accessor) = LocalResource::new("Rendering engine", renderer);
     states::renderer::set(accessor);
 
     states::early_registries::set(
         registries::load_early_registries()
             .await
             .context("Loading early registries")?,
+    );
+
+    // Set initial blitter shader
+    renderer_resource.get_mut().set_blit_shader(
+        states::early_registries::get()
+            .shaders
+            .get(&rendering::DEFAULT_FRAME_BLITTER_SHADER_ID)
+            .expect("cannot find default blit shader"),
     );
 
     let mut stack = ScreenStack::new();

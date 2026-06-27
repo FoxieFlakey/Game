@@ -1,5 +1,5 @@
 use std::{
-    cmp,
+    cell::OnceCell,
     collections::VecDeque,
     num::{NonZero, NonZeroU32},
     sync::LazyLock,
@@ -8,13 +8,20 @@ use std::{
 use anyhow::anyhow;
 use smallvec::SmallVec;
 
-use crate::rendering::data_loader::DataLoader;
+use crate::{
+    rendering::{data_loader::DataLoader, framebuffer_blitter::FrameBlitter},
+    util::identifier::Identifier,
+};
 
 pub mod buffer;
 pub mod data_loader;
 pub mod gpu_lookup;
 pub mod pipeline;
 pub mod util;
+
+mod framebuffer_blitter;
+
+use framebuffer_blitter::Frame;
 
 pub static WGPU: LazyLock<wgpu::Instance> = LazyLock::new(|| {
     wgpu::Instance::new(wgpu::InstanceDescriptor {
@@ -57,15 +64,13 @@ pub struct Renderer {
     inflight_max_count: usize,
 
     device_poller: util::DevicePoller,
+    frame_blitter: OnceCell<FrameBlitter>,
+    blit_shader: Option<wgpu::ShaderModule>,
 }
 
 struct InFlightFrame {
     poller: Option<util::SubmissionPoller>,
     frame_data: Frame,
-}
-
-struct Frame {
-    output: wgpu::Texture,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -84,6 +89,9 @@ pub struct RenderPermit<'a> {
     output_surface: Option<wgpu::SurfaceTexture>,
 }
 
+pub const DEFAULT_FRAME_BLITTER_SHADER_ID: Identifier =
+    Identifier::new_const("early/frame_blitter");
+
 impl Renderer {
     pub async fn new(gpu: &wgpu::Adapter) -> anyhow::Result<Self> {
         let desc = wgpu::DeviceDescriptor {
@@ -94,6 +102,7 @@ impl Renderer {
 
         Ok(Self {
             device_poller: util::DevicePoller::new(device.clone()),
+            frame_blitter: OnceCell::new(),
             device,
             queue,
             gpu: gpu.clone(),
@@ -104,11 +113,20 @@ impl Renderer {
             inflight_frames: VecDeque::new(),
             per_frame_data_cache: VecDeque::new(),
             inflight_max_count: 1,
+            blit_shader: None,
         })
     }
 
     pub fn set_output_size(&mut self, size: (NonZeroU32, NonZeroU32)) {
         self.output_size = size;
+        self.need_configure = true;
+    }
+
+    pub fn set_blit_shader(&mut self, shader: &wgpu::ShaderModule) {
+        self.blit_shader = Some(shader.clone());
+
+        // Trigger reconfiguring and recreatioin of blit shader
+        self.frame_blitter.take();
         self.need_configure = true;
     }
 
@@ -143,7 +161,7 @@ impl Renderer {
             desired_maximum_frame_latency: 2,
             width: self.output_size.0.get(),
             height: self.output_size.1.get(),
-            usage: wgpu::TextureUsages::COPY_DST,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             view_formats: vec![],
         };
 
@@ -159,34 +177,42 @@ impl Renderer {
         self.per_frame_data_cache.clear();
 
         for _ in 0..self.inflight_max_count {
+            let blit_shader = self
+                .blit_shader
+                .as_ref()
+                .expect("Frame blit shader is not set");
             // Recreate "staging" texture where GPU renders into
             // before finally blitted to surface
-            self.per_frame_data_cache.push_back(Frame {
-                output: self.device.create_texture(&wgpu::TextureDescriptor {
-                    dimension: wgpu::TextureDimension::D2,
-                    label: Some("Intemediary texture"),
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    view_formats: &[],
-                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
-                    size: wgpu::Extent3d {
-                        depth_or_array_layers: 1,
-                        height: new_surface_config.height,
-                        width: new_surface_config.width,
-                    },
-                    format: new_surface_config.format,
-                }),
-            });
+            self.per_frame_data_cache.push_back(
+                self.frame_blitter
+                    .get_or_init(|| {
+                        FrameBlitter::new(
+                            self.device.clone(),
+                            blit_shader,
+                            new_surface_config.format,
+                        )
+                    })
+                    .new_frame(self.device.create_texture(&wgpu::TextureDescriptor {
+                        dimension: wgpu::TextureDimension::D2,
+                        label: Some("Intemediary texture"),
+                        mip_level_count: 1,
+                        sample_count: 1,
+                        view_formats: &[],
+                        usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                            | wgpu::TextureUsages::TEXTURE_BINDING,
+                        size: wgpu::Extent3d {
+                            depth_or_array_layers: 1,
+                            height: new_surface_config.height,
+                            width: new_surface_config.width,
+                        },
+                        format: new_surface_config.format,
+                    })),
+            );
         }
     }
 
     pub fn data_loader(&self) -> DataLoader {
         DataLoader::new(self.device.clone(), self.queue.clone())
-    }
-
-    pub fn get_output_format(&self) -> wgpu::TextureFormat {
-        self.output_format
-            .expect("Renderer hasn't configure the surface, yet")
     }
 
     pub fn prep_render<'a>(
@@ -248,41 +274,13 @@ impl RenderPermit<'_> {
             return false;
         };
 
-        let dest = &output_surface.texture;
-        let src = &frame.output;
-
-        let mut cmd =
-            self.renderer
-                .device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("Blit final frame to display"),
-                });
-
-        cmd.copy_texture_to_texture(
-            wgpu::TexelCopyTextureInfo {
-                texture: src,
-                mip_level: 0,
-                aspect: wgpu::TextureAspect::All,
-                origin: wgpu::Origin3d::ZERO,
-            },
-            wgpu::TexelCopyTextureInfo {
-                texture: dest,
-                mip_level: 0,
-                aspect: wgpu::TextureAspect::All,
-                origin: wgpu::Origin3d::ZERO,
-            },
-            wgpu::Extent3d {
-                depth_or_array_layers: 1,
-                height: cmp::min(dest.height(), src.height()),
-                width: cmp::min(dest.width(), src.width()),
-            },
-        );
-
-        let id = self.renderer.queue.submit([cmd.finish()]);
-
-        // Have to wait, or else if CPU fast enough it would reach the this function again before the
-        // Texture for surface is done being used by GPU (to be blitted into)
-        util::wait_device(&self.renderer.device, id);
+        // Translate the frame to the output format
+        // performing necessary colorspace mappings
+        self.renderer
+            .frame_blitter
+            .get()
+            .expect("ColorSpaceTranslator must have been initialized")
+            .present(frame, &output_surface, &self.renderer.queue);
 
         // Now surface contains the rendered surface
         output_surface.present();
@@ -352,7 +350,13 @@ impl RenderPermit<'_> {
         F: FnOnce(
             &wgpu::TextureView,
             &dyn Fn(&wgpu::CommandEncoderDescriptor) -> wgpu::CommandEncoder,
-        ) -> Result<(T, SmallVec<[wgpu::CommandBuffer; STACK_ALLOCATED_COUNT_OF_BUFS]>), E>,
+        ) -> Result<
+            (
+                T,
+                SmallVec<[wgpu::CommandBuffer; STACK_ALLOCATED_COUNT_OF_BUFS]>,
+            ),
+            E,
+        >,
     {
         let frame;
 

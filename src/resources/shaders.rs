@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 
 use crate::{
-    error, registries::util, registry::Registry, runtimes, screen, states, ui,
+    error, registries::util, registry::Registry, rendering, runtimes, screen, states, ui,
     util::identifier::Identifier,
 };
 
@@ -52,18 +52,17 @@ async fn load_list(shaders: &[Shader]) -> anyhow::Result<Registry<wgpu::ShaderMo
 
 #[rustfmt::skip]
 pub async fn load() -> anyhow::Result<Registry<wgpu::ShaderModule>> {
-    load_list(&[Shader::new(
-        ui::primitives::ColoredRectangle::SHADER_ID,
-        include_str!("ui/colored_rectangle_shader.wgsl"),
-    )])
+    load_list(&[
+        Shader::new(ui::primitives::ColoredRectangle::SHADER_ID, include_str!("ui/colored_rectangle_shader.wgsl")),
+    ])
     .await
 }
 
 #[rustfmt::skip]
 pub async fn early_load() -> anyhow::Result<Registry<wgpu::ShaderModule>> {
-    load_list(&[Shader::new(
-        screen::LoadingScreen::ICON_SHADER_ID,
-        include_str!("early/loading_screen.wgsl"),
-    )])
+    load_list(&[
+        Shader::new(screen::LoadingScreen::ICON_SHADER_ID, include_str!("early/loading_screen.wgsl")),
+        Shader::new(rendering::DEFAULT_FRAME_BLITTER_SHADER_ID, include_str!("early/frame_blitter.wgsl")),
+    ])
     .await
 }
