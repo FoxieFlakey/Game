@@ -3,14 +3,11 @@
 #![feature(min_specialization)]
 #![feature(range_bounds_is_empty)]
 #![feature(oneshot_channel)]
-#![feature(sync_nonpoison)]
-#![feature(nonpoison_rwlock)]
 
 use std::{
     ffi::CStr,
     num::NonZero,
     pin::Pin,
-    sync::nonpoison::RwLock,
     task::Poll,
     time::{Duration, Instant},
 };
@@ -22,7 +19,6 @@ use smallvec::SmallVec;
 
 use crate::{
     local_resource::LocalResource,
-    registries::Registries,
     rendering::Renderer,
     screen::{Screen, screen_stack::ScreenStack},
     util::static_gpu_buffer,
@@ -139,7 +135,8 @@ async fn init() -> anyhow::Result<Resources> {
             .video
             .window("Game UwU", 1280, 720)
             .vulkan()
-            .position_centered(),
+            .position_centered()
+            .hidden(),
     )
     .context("Creating main game window")?;
 
@@ -298,6 +295,12 @@ async fn async_main(
         .await
         .context("Initializing minimal game subsystems")?;
     info!("Minimal game subsystems ready, initializing other resources on background");
+    resources
+        .main_resource
+        .get_mut()
+        .window
+        .set_visibility(true)
+        .context("Making window visible")?;
 
     let a = runtimes::background::spawn(late_init());
     let mut registry_init_handle = OptionFuture::from(Some(a));
