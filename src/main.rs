@@ -3,13 +3,11 @@
 #![feature(min_specialization)]
 #![feature(range_bounds_is_empty)]
 #![feature(oneshot_channel)]
+#![feature(sync_nonpoison)]
+#![feature(nonpoison_rwlock)]
 
 use std::{
-    ffi::CStr,
-    num::NonZero,
-    pin::Pin,
-    task::Poll,
-    time::{Duration, Instant},
+    ffi::CStr, num::NonZero, pin::Pin, sync::nonpoison::RwLock, task::Poll, time::{Duration, Instant}
 };
 
 use anyhow::Context;
@@ -89,7 +87,6 @@ struct Resources {
     sdl_resource: LocalResource<SdlState>,
     main_resource: LocalResource<MainState>,
     renderer_resource: LocalResource<Renderer>,
-    registries_resource: LocalResource<Option<Registries>>,
 }
 
 impl Resources {
@@ -98,7 +95,6 @@ impl Resources {
             self.sdl_resource.poll_loop(),
             self.main_resource.poll_loop(),
             self.renderer_resource.poll_loop(),
-            self.registries_resource.poll_loop(),
         );
 
         panic!("Something horribly gone wrong, poll loop for resources intended to never finishes");
@@ -191,14 +187,10 @@ async fn init() -> anyhow::Result<Resources> {
     );
     states::main::set(accessor);
 
-    let (registries_resource, accessor) = LocalResource::new("Game registries", None);
-    states::registries::set(accessor);
-
     Ok(Resources {
         sdl_resource,
         main_resource,
         renderer_resource,
-        registries_resource,
     })
 }
 
@@ -212,14 +204,7 @@ async fn late_init() -> anyhow::Result<impl FnOnce(&mut Resources) -> anyhow::Re
         .context("Initializing registries")?;
 
     Ok(move |resources: &mut Resources| {
-        let mut regs = resources.registries_resource.get_mut();
-        if regs.is_some() {
-            return Err(anyhow::anyhow!(
-                "Something already initialized the registries?!"
-            ));
-        }
-
-        *regs = Some(registries);
+        states::registries::set(registries);
 
         struct Rect;
 

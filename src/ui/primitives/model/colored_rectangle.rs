@@ -8,7 +8,7 @@ use crate::{
         pipeline::{Pipeline, VertexBufs, vertex_buffer_layout},
     },
     states,
-    util::static_gpu_buffer,
+    util::{identifier::Identifier, static_gpu_buffer},
 };
 
 #[repr(C)]
@@ -59,10 +59,10 @@ static_gpu_buffer!(
 
 static PIPELINE: LazyLock<Pipeline<u16, Vertex, Instance>> = LazyLock::new(|| {
     let device = states::main_dev::get();
-    let shader = device.create_shader_module(wgpu::include_wgsl!(
-        "../../../resources/colored_rectangle_shader.wgsl"
-    ));
-
+    let shader = states::registries::get()
+            .shaders
+            .get(&Identifier::new("colored_rectangle"))
+            .expect("Cannot find shader for colored rectangle");
     Pipeline::new(
         device,
         &[],

@@ -27,14 +27,6 @@ define_state!(sdl, crate::local_resource::Accessor<crate::SdlState>);
 // Main states the same, only accessible from main thread
 define_state!(main, crate::local_resource::Accessor<crate::MainState>);
 
-// Registries, contains all game registries
-// during resource loading this is None
-// which mean not ready yet
-define_state!(
-    registries,
-    crate::local_resource::Accessor<Option<crate::registries::Registries>>
-);
-
 // Early registry that is initialized and is read only
 // since loaded
 define_state!(early_registries, crate::registries::EarlyRegistries);
@@ -54,3 +46,13 @@ define_state!(main_dev, wgpu::Device);
 
 // Texture format that renderer will use for lifetime
 define_state!(surface_format, wgpu::TextureFormat);
+
+// Stuffs that is only available after boot
+
+// Registries, contains all game registries that is loaded
+// its not initialized till game done booting
+define_state!(
+    registries,
+    crate::registries::Registries
+);
+
