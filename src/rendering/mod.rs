@@ -52,6 +52,7 @@ pub struct Renderer {
     need_configure: bool,
     output_size: (NonZeroU32, NonZeroU32),
     output_format: Option<wgpu::TextureFormat>,
+    render_format: wgpu::TextureFormat,
 
     // per frame data for render aheads
     // where GPU working on N frame while
@@ -93,7 +94,10 @@ pub const DEFAULT_FRAME_BLITTER_SHADER_ID: Identifier =
     Identifier::new_const("early/frame_blitter");
 
 impl Renderer {
-    pub async fn new(gpu: &wgpu::Adapter) -> anyhow::Result<Self> {
+    pub async fn new(
+        gpu: &wgpu::Adapter,
+        render_format: wgpu::TextureFormat,
+    ) -> anyhow::Result<Self> {
         let desc = wgpu::DeviceDescriptor {
             ..Default::default()
         };
@@ -114,6 +118,7 @@ impl Renderer {
             per_frame_data_cache: VecDeque::new(),
             inflight_max_count: 1,
             blit_shader: None,
+            render_format,
         })
     }
 
@@ -205,7 +210,9 @@ impl Renderer {
                             height: new_surface_config.height,
                             width: new_surface_config.width,
                         },
-                        format: new_surface_config.format,
+                        // Unlike the previous appearance of new_surface_config.format
+                        // this is mean to be render format. NOT the presentation format
+                        format: self.render_format,
                     })),
             );
         }

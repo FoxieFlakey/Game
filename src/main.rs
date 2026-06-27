@@ -150,7 +150,10 @@ async fn init() -> anyhow::Result<Resources> {
         info.name, info.backend, info.device_pci_bus_id
     );
 
-    let mut renderer = Renderer::new(gpu).await.context("Initializing renderer")?;
+    let render_format = wgpu::TextureFormat::Rgba16Float;
+    let mut renderer = Renderer::new(gpu, render_format)
+        .await
+        .context("Initializing renderer")?;
     let (width, height) = window.get_size();
     let default = NonZero::new(10).unwrap();
     renderer.set_output_size((
@@ -161,7 +164,7 @@ async fn init() -> anyhow::Result<Resources> {
 
     states::main_dev::set(renderer.get_device().clone());
     states::data_loader::set(renderer.data_loader());
-    states::surface_format::set(wgpu::TextureFormat::Bgra8UnormSrgb);
+    states::surface_format::set(render_format);
     let (mut renderer_resource, accessor) = LocalResource::new("Rendering engine", renderer);
     states::renderer::set(accessor);
 
