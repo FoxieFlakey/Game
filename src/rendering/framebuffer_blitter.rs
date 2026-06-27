@@ -1,12 +1,10 @@
 use glam::{Vec2, Vec3};
-use wgpu::include_wgsl;
 
 use crate::{
     rendering::{
         pipeline::{Pipeline, VertexBufs, vertex_buffer_layout},
         util,
     },
-    states,
     util::static_gpu_buffer,
 };
 

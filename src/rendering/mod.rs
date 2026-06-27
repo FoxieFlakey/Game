@@ -74,12 +74,6 @@ struct InFlightFrame {
     frame_data: Frame,
 }
 
-#[derive(thiserror::Error, Debug)]
-pub enum RendererCreateFailed {
-    #[error("Cannot request device: {0}")]
-    CannotRequestDevice(#[from] wgpu::RequestDeviceError),
-}
-
 pub struct RenderPermit<'a> {
     renderer: &'a mut Renderer,
 
