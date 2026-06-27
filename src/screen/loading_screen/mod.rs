@@ -22,7 +22,7 @@ pub struct LoadingScreen {
     loading_paws: VecBuf<loading_paw_model::LoadingPawInstance>,
     rotation_deg: f32,
     scale: Vec3,
-    translation: Vec3
+    translation: Vec3,
 }
 
 mod loading_paw_model;
@@ -65,10 +65,10 @@ impl LoadingScreen {
         let mut loading_paws = VecBuf::new_with_initial_capacity(
             states::main_dev::get().clone(),
             BufferKind::Vertex,
-            1
+            1,
         );
         loading_paws.resize(states::data_loader::get(), 1);
-        
+
         Self {
             loading_paws,
             scale: Vec3::splat(120.0),
@@ -110,15 +110,19 @@ impl Screen for LoadingScreen {
     ) -> anyhow::Result<smallvec::SmallVec<[wgpu::CommandBuffer; super::STACK_ALLOCATED_COUNT]>>
     {
         self.rotation_deg -= delta_time.as_secs_f32() * 160.0;
-        
-        self.loading_paws.set(0, states::data_loader::get(), &LoadingPawInstance {
-            transform: Mat4::from_scale_rotation_translation(
-                self.scale,
-                Quat::from_rotation_z(self.rotation_deg.to_radians()),
-                self.translation
-            )
-        });
-        
+
+        self.loading_paws.set(
+            0,
+            states::data_loader::get(),
+            &LoadingPawInstance {
+                transform: Mat4::from_scale_rotation_translation(
+                    self.scale,
+                    Quat::from_rotation_z(self.rotation_deg.to_radians()),
+                    self.translation,
+                ),
+            },
+        );
+
         let mut encoder = cmd_encoder_creator(&wgpu::CommandEncoderDescriptor::default());
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -139,10 +143,7 @@ impl Screen for LoadingScreen {
         });
 
         render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-        loading_paw_model::LOADING_PAW.render(
-            &mut render_pass,
-            &self.loading_paws
-        );
+        loading_paw_model::LOADING_PAW.render(&mut render_pass, &self.loading_paws);
 
         drop(render_pass);
         Ok(smallvec![encoder.finish()])

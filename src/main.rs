@@ -7,7 +7,12 @@
 #![feature(nonpoison_rwlock)]
 
 use std::{
-    ffi::CStr, num::NonZero, pin::Pin, sync::nonpoison::RwLock, task::Poll, time::{Duration, Instant}
+    ffi::CStr,
+    num::NonZero,
+    pin::Pin,
+    sync::nonpoison::RwLock,
+    task::Poll,
+    time::{Duration, Instant},
 };
 
 use anyhow::Context;

@@ -1,2 +1,2 @@
-pub mod textures;
 pub mod shaders;
+pub mod textures;

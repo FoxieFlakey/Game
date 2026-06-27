@@ -60,9 +60,9 @@ static_gpu_buffer!(
 static PIPELINE: LazyLock<Pipeline<u16, Vertex, Instance>> = LazyLock::new(|| {
     let device = states::main_dev::get();
     let shader = states::registries::get()
-            .shaders
-            .get(&Identifier::new("colored_rectangle"))
-            .expect("Cannot find shader for colored rectangle");
+        .shaders
+        .get(&Identifier::new("colored_rectangle"))
+        .expect("Cannot find shader for colored rectangle");
     Pipeline::new(
         device,
         &[],

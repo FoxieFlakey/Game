@@ -51,8 +51,4 @@ define_state!(surface_format, wgpu::TextureFormat);
 
 // Registries, contains all game registries that is loaded
 // its not initialized till game done booting
-define_state!(
-    registries,
-    crate::registries::Registries
-);
-
+define_state!(registries, crate::registries::Registries);

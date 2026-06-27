@@ -144,7 +144,7 @@ pub fn init() {
                     return;
                 }
             }
-            
+
             for entry in MUTE_MOD_PREFIX {
                 // Mute a module
                 if mod_name.starts_with(entry) {

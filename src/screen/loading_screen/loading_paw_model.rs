@@ -3,7 +3,10 @@ use std::sync::LazyLock;
 use glam::{Mat4, Vec2, Vec3};
 
 use crate::{
-    rendering::{buffer::VecBuf, pipeline::{Pipeline, VertexBufs, vertex_buffer_layout}},
+    rendering::{
+        buffer::VecBuf,
+        pipeline::{Pipeline, VertexBufs, vertex_buffer_layout},
+    },
     states,
     util::{identifier::Identifier, static_gpu_buffer},
 };
@@ -109,7 +112,11 @@ impl LoadingPawModel {
         }
     }
 
-    pub fn render(&self, render_pass: &mut wgpu::RenderPass, instances: &VecBuf<LoadingPawInstance>) {
+    pub fn render(
+        &self,
+        render_pass: &mut wgpu::RenderPass,
+        instances: &VecBuf<LoadingPawInstance>,
+    ) {
         render_pass.set_bind_group(1, &self.bind_group, &[]);
         self.pipeline.render(
             render_pass,
@@ -127,8 +134,7 @@ impl LoadingPawModel {
     }
 }
 
-pub static LOADING_PAW: LazyLock<LoadingPawModel> =
-    LazyLock::new(|| LoadingPawModel::new());
+pub static LOADING_PAW: LazyLock<LoadingPawModel> = LazyLock::new(|| LoadingPawModel::new());
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
