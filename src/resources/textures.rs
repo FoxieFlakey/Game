@@ -45,13 +45,13 @@ async fn load_list(textures: &[Texture]) -> anyhow::Result<Registry<wgpu::Textur
 }
 
 pub async fn load() -> anyhow::Result<Registry<wgpu::Texture>> {
-    load_list(&[Texture::new("background", include_bytes!("image.png"))]).await
+    load_list(&[Texture::new("ui/background", include_bytes!("ui/image.png"))]).await
 }
 
 pub async fn early_load() -> anyhow::Result<Registry<wgpu::Texture>> {
     load_list(&[Texture::new(
-        "loading_icon",
-        include_bytes!("loading_icon.png"),
+        "early/loading_icon",
+        include_bytes!("early/loading_icon.png"),
     )])
     .await
 }

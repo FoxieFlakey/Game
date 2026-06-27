@@ -54,16 +54,16 @@ async fn load_list(shaders: &[Shader]) -> anyhow::Result<Registry<wgpu::ShaderMo
 
 pub async fn load() -> anyhow::Result<Registry<wgpu::ShaderModule>> {
     load_list(&[Shader::new(
-        "colored_rectangle",
-        include_str!("colored_rectangle_shader.wgsl"),
+        "ui/colored_rectangle",
+        include_str!("ui/colored_rectangle_shader.wgsl"),
     )])
     .await
 }
 
 pub async fn early_load() -> anyhow::Result<Registry<wgpu::ShaderModule>> {
     load_list(&[Shader::new(
-        "loading_icon",
-        include_str!("loading_screen.wgsl"),
+        "early/loading_icon",
+        include_str!("early/loading_screen.wgsl"),
     )])
     .await
 }

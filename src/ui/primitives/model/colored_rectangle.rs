@@ -61,7 +61,7 @@ static PIPELINE: LazyLock<Pipeline<u16, Vertex, Instance>> = LazyLock::new(|| {
     let device = states::main_dev::get();
     let shader = states::registries::get()
         .shaders
-        .get(&Identifier::new("colored_rectangle"))
+        .get(&Identifier::new("ui/colored_rectangle"))
         .expect("Cannot find shader for colored rectangle");
     Pipeline::new(
         device,
