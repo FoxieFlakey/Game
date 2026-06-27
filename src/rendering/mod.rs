@@ -352,7 +352,7 @@ impl RenderPermit<'_> {
         F: FnOnce(
             &wgpu::TextureView,
             &dyn Fn(&wgpu::CommandEncoderDescriptor) -> wgpu::CommandEncoder,
-        ) -> Result<(T, SmallVec<[wgpu::CommandBuffer; 8]>), E>,
+        ) -> Result<(T, SmallVec<[wgpu::CommandBuffer; STACK_ALLOCATED_COUNT_OF_BUFS]>), E>,
     {
         let frame;
 
