@@ -24,9 +24,11 @@ impl LoadingPawModel {
         let texture = states::early_registries::get()
             .textures
             .get(&Identifier::new("loading_icon"))
-            .expect("Cannot find loading paw");
-        let shader =
-            device.create_shader_module(wgpu::include_wgsl!("../../resources/loading_screen.wgsl"));
+            .expect("Cannot find loading icon texture");
+        let shader = states::early_registries::get()
+            .shaders
+            .get(&Identifier::new("loading_icon"))
+            .expect("Cannot find loading icon shader");
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
             entries: &[
