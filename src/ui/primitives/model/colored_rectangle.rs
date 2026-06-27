@@ -71,7 +71,7 @@ static PIPELINE: LazyLock<Pipeline<u16, Vertex, Instance>> = LazyLock::new(|| {
         &shader,
         None,
         &[Some(wgpu::ColorTargetState {
-            format: *states::surface_format::get(),
+            format: *states::render_format::get(),
             blend: Some(wgpu::BlendState::REPLACE),
             write_mask: wgpu::ColorWrites::ALL,
         })],

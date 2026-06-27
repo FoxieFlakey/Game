@@ -164,7 +164,7 @@ async fn init() -> anyhow::Result<Resources> {
 
     states::main_dev::set(renderer.get_device().clone());
     states::data_loader::set(renderer.data_loader());
-    states::surface_format::set(render_format);
+    states::render_format::set(render_format);
     let (mut renderer_resource, accessor) = LocalResource::new("Rendering engine", renderer);
     states::renderer::set(accessor);
 

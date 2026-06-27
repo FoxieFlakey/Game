@@ -44,8 +44,8 @@ define_state!(data_loader, crate::rendering::data_loader::DataLoader);
 // it is accessible anywhere
 define_state!(main_dev, wgpu::Device);
 
-// Texture format that renderer will use for lifetime
-define_state!(surface_format, wgpu::TextureFormat);
+// Texture format that the game renders in
+define_state!(render_format, wgpu::TextureFormat);
 
 // Stuffs that is only available after boot
 

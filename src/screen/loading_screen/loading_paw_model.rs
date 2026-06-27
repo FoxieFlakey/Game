@@ -93,7 +93,7 @@ impl LoadingPawModel {
                 &shader,
                 None,
                 &[Some(wgpu::ColorTargetState {
-                    format: *states::surface_format::get(),
+                    format: *states::render_format::get(),
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
