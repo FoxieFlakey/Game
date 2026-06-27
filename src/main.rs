@@ -38,7 +38,6 @@ mod screen;
 mod states;
 mod ui;
 mod util;
-mod wgpu_async;
 mod window;
 
 fn main() {
