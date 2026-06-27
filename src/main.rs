@@ -195,17 +195,16 @@ async fn init() -> anyhow::Result<Resources> {
 }
 
 async fn late_init() -> anyhow::Result<impl FnOnce(&mut Resources) -> anyhow::Result<()>> {
-    info!("Late initializing UI");
-    ui::init().context("Initializing UI")?;
-
     info!("Late initializing registry");
     let registries = registries::load_registries()
         .await
         .context("Initializing registries")?;
+    states::registries::set(registries);
+
+    info!("Late initializing UI");
+    ui::init().context("Initializing UI")?;
 
     Ok(move |resources: &mut Resources| {
-        states::registries::set(registries);
-
         struct Rect;
 
         impl screen::Screen for Rect {
