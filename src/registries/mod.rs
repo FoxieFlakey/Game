@@ -11,16 +11,6 @@ pub struct Registries {
     pub shaders: Registry<wgpu::ShaderModule>,
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum LoadError {
-    #[error("failed to load textures")]
-    TextureLoad(
-        #[from]
-        #[source]
-        resources::textures::TextureLoadError,
-    ),
-}
-
 pub async fn load_registries() -> anyhow::Result<Registries> {
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
