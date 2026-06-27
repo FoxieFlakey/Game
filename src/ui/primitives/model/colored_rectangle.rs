@@ -79,6 +79,10 @@ static PIPELINE: LazyLock<Pipeline<u16, Vertex, Instance>> = LazyLock::new(|| {
     )
 });
 
+impl Instance {
+    pub const SHADER_ID: Identifier = Identifier::new_const("ui/colored_rectangle");
+}
+
 pub fn render(render_pass: &mut wgpu::RenderPass, instances: &VecBuf<Instance>) {
     PIPELINE.render(
         render_pass,

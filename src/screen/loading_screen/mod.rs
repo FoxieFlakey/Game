@@ -8,6 +8,7 @@ use crate::{
     rendering::buffer::{BufferKind, VecBuf},
     screen::{Screen, loading_screen::loading_paw_model::LoadingPawInstance},
     states,
+    util::identifier::Identifier,
 };
 
 #[repr(C)]
@@ -48,6 +49,9 @@ static CAMERA_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::new
 });
 
 impl LoadingScreen {
+    pub const ICON_SHADER_ID: Identifier = Identifier::new_const("early/loading_icon");
+    pub const ICON_TEXTURE_ID: Identifier = Identifier::new_const("early/loading_icon");
+
     pub fn new() -> Self {
         // Explicitly make sure all of the resources loaded
         LazyLock::force(&loading_paw_model::LOADING_PAW);

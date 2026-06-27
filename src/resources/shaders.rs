@@ -1,7 +1,8 @@
 use anyhow::anyhow;
 
 use crate::{
-    error, registries::util, registry::Registry, runtimes, states, util::identifier::Identifier,
+    error, registries::util, registry::Registry, runtimes, screen, states, ui,
+    util::identifier::Identifier,
 };
 
 #[derive(Clone)]
@@ -11,11 +12,8 @@ pub struct Shader {
 }
 
 impl Shader {
-    pub fn new(identifier: &str, source: &'static str) -> Self {
-        Self {
-            identifier: Identifier::new(identifier),
-            source: source,
-        }
+    pub fn new(identifier: Identifier, source: &'static str) -> Self {
+        Self { identifier, source }
     }
 }
 
@@ -52,17 +50,19 @@ async fn load_list(shaders: &[Shader]) -> anyhow::Result<Registry<wgpu::ShaderMo
     .map_err(|_| anyhow!("error loading shaders, check log"))
 }
 
+#[rustfmt::skip]
 pub async fn load() -> anyhow::Result<Registry<wgpu::ShaderModule>> {
     load_list(&[Shader::new(
-        "ui/colored_rectangle",
+        ui::primitives::ColoredRectangle::SHADER_ID,
         include_str!("ui/colored_rectangle_shader.wgsl"),
     )])
     .await
 }
 
+#[rustfmt::skip]
 pub async fn early_load() -> anyhow::Result<Registry<wgpu::ShaderModule>> {
     load_list(&[Shader::new(
-        "early/loading_icon",
+        screen::LoadingScreen::ICON_SHADER_ID,
         include_str!("early/loading_screen.wgsl"),
     )])
     .await

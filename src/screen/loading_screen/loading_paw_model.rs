@@ -7,8 +7,9 @@ use crate::{
         buffer::VecBuf,
         pipeline::{Pipeline, VertexBufs, vertex_buffer_layout},
     },
+    screen::LoadingScreen,
     states,
-    util::{identifier::Identifier, static_gpu_buffer},
+    util::static_gpu_buffer,
 };
 
 pub struct LoadingPawModel {
@@ -26,11 +27,11 @@ impl LoadingPawModel {
         let device = states::main_dev::get();
         let texture = states::early_registries::get()
             .textures
-            .get(&Identifier::new("early/loading_icon"))
+            .get(&LoadingScreen::ICON_TEXTURE_ID)
             .expect("Cannot find loading icon texture");
         let shader = states::early_registries::get()
             .shaders
-            .get(&Identifier::new("early/loading_icon"))
+            .get(&LoadingScreen::ICON_SHADER_ID)
             .expect("Cannot find loading icon shader");
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,

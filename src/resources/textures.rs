@@ -1,7 +1,8 @@
 use anyhow::{Context, anyhow};
 
 use crate::{
-    error, registries::util, registry::Registry, runtimes, states, util::identifier::Identifier,
+    error, registries::util, registry::Registry, runtimes, screen, states,
+    util::identifier::Identifier,
 };
 
 struct Texture {
@@ -10,9 +11,9 @@ struct Texture {
 }
 
 impl Texture {
-    pub fn new(identifier: &str, bytes: &'static [u8]) -> Self {
+    pub fn new(identifier: Identifier, bytes: &'static [u8]) -> Self {
         Self {
-            identifier: Identifier::new(identifier),
+            identifier: identifier,
             raw_bytes: bytes,
         }
     }
@@ -44,14 +45,20 @@ async fn load_list(textures: &[Texture]) -> anyhow::Result<Registry<wgpu::Textur
     .map_err(|_| anyhow!("Cannot load some textures, see logs"))
 }
 
+#[rustfmt::skip]
 pub async fn load() -> anyhow::Result<Registry<wgpu::Texture>> {
-    load_list(&[Texture::new("ui/background", include_bytes!("ui/image.png"))]).await
+    load_list(&[
+        Texture::new(Identifier::new("ui/image"), include_bytes!("ui/image.png"))
+    ]).await
 }
 
+#[rustfmt::skip]
 pub async fn early_load() -> anyhow::Result<Registry<wgpu::Texture>> {
-    load_list(&[Texture::new(
-        "early/loading_icon",
-        include_bytes!("early/loading_icon.png"),
-    )])
+    load_list(&[
+        Texture::new(
+            screen::LoadingScreen::ICON_TEXTURE_ID,
+            include_bytes!("early/loading_icon.png"),
+        )
+    ])
     .await
 }

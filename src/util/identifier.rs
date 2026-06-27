@@ -1,11 +1,11 @@
-use std::fmt::Display;
+use std::{borrow::Cow, fmt::Display};
 
 pub const GAME_ID: &str = "foxiefox";
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Identifier {
-    pub namespace: String,
-    pub path: String,
+    pub namespace: Cow<'static, str>,
+    pub path: Cow<'static, str>,
 }
 
 impl Display for Identifier {
@@ -17,8 +17,15 @@ impl Display for Identifier {
 impl Identifier {
     pub(crate) fn new<S: Into<String>>(path: S) -> Self {
         Self {
-            namespace: GAME_ID.to_string(),
-            path: path.into(),
+            namespace: Cow::Borrowed(GAME_ID),
+            path: Cow::Owned(path.into()),
+        }
+    }
+
+    pub(crate) const fn new_const(path: &'static str) -> Self {
+        Self {
+            namespace: Cow::Borrowed(GAME_ID),
+            path: Cow::Borrowed(path),
         }
     }
 }
