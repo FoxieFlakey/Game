@@ -202,6 +202,7 @@ impl Renderer {
                             self.device.clone(),
                             blit_shader,
                             new_surface_config.format,
+                            self.data_loader(),
                         )
                     })
                     .new_frame(self.device.create_texture(&wgpu::TextureDescriptor {

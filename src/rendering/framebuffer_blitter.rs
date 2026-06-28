@@ -3,10 +3,10 @@ use glam::{Vec2, Vec3};
 use crate::{
     rendering::{
         buffer::{BufferKind, VecBuf},
+        data_loader::DataLoader,
         pipeline::{Pipeline, VertexBufs, vertex_buffer_layout},
         util,
     },
-    states,
     util::static_gpu_buffer,
 };
 
@@ -23,6 +23,7 @@ pub struct FrameBlitter {
     pipeline: Pipeline<u16, Vertex>,
     device: wgpu::Device,
     uniforms: VecBuf<Uniforms>,
+    data_loader: DataLoader,
 }
 
 #[repr(C)]
@@ -44,6 +45,7 @@ impl FrameBlitter {
         device: wgpu::Device,
         blit_shader: &wgpu::ShaderModule,
         output_format: wgpu::TextureFormat,
+        data_loader: DataLoader,
     ) -> Self {
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
@@ -90,7 +92,7 @@ impl FrameBlitter {
 
         let mut uniforms = VecBuf::new(device.clone(), BufferKind::Uniform);
         uniforms.extend_from_slice(
-            states::data_loader::get(),
+            &data_loader,
             &[Uniforms {
                 output_height: 1.0,
                 output_width: 1.0,
@@ -124,6 +126,7 @@ impl FrameBlitter {
             uniforms,
             bind_group_layout,
             device,
+            data_loader,
         }
     }
 
@@ -160,7 +163,7 @@ impl FrameBlitter {
 
         self.uniforms.set(
             0,
-            states::data_loader::get(),
+            &self.data_loader,
             &Uniforms {
                 output_width: output_width as f32,
                 output_height: output_height as f32,
