@@ -5,7 +5,7 @@ use smallvec::{SmallVec, smallvec};
 use taffy::TraversePartialTree;
 
 use crate::{
-    events::{self, EventHandleResult},
+    events::EventHandleResult,
     rendering::buffer::{BufferKind, VecBuf},
     screen::Screen,
     states,
@@ -23,7 +23,7 @@ pub struct UI {
     camera: VecBuf<Camera>,
     taffy: taffy::TaffyTree<RefCell<Box<dyn Component>>>,
     root_id: taffy::NodeId,
-
+    projection_matrix: Mat4,
     colored_rects: VecBuf<primitives::ColoredRectangle>,
 }
 
@@ -84,44 +84,47 @@ impl UI {
                     }],
                 },
             ),
+            projection_matrix: Mat4::IDENTITY,
             camera,
         };
         this.on_resize(screen_width, screen_height);
         this
     }
-    
+
     fn iter_tree<F>(&self, mut consumer: F)
-        // Return true to quit iteration early
-        where F: FnMut(/* Transform matrix */ Mat4, /* width */ f32, /* height */ f32, /* component */ &RefCell<Box<dyn Component>>) -> bool
+    // Return true to quit iteration early
+    where
+        F: FnMut(
+            /* Transform matrix */ Mat4,
+            /* width */ f32,
+            /* height */ f32,
+            /* component */ &RefCell<Box<dyn Component>>,
+        ) -> bool,
     {
         struct State<'a> {
             parent_transform_matrix: Mat4,
             parent_height: f32,
             childs: Box<dyn Iterator<Item = taffy::NodeId> + 'a>,
         }
-        
+
         let root_layout = self.taffy.layout(self.root_id).unwrap();
-        let root = self.taffy
-            .get_node_context(self.root_id)
-            .unwrap();
-        
+        let root = self.taffy.get_node_context(self.root_id).unwrap();
+
         let do_ret = consumer(
-                Mat4::from_translation(Vec3::new(
-                    root_layout.content_box_x(),
-                    // Gemini AI slop generated to uhh do whatever to translate
-                    // Taffy's 0,0 on top to WGPU's 0,0 at bottom left
-                    self.screen_height
-                        - root_layout.content_box_y()
-                        - root_layout.content_box_height(),
-                    0.0,
-                )),
-                root_layout.content_box_width(),
-                root_layout.content_box_height(),
-                root
-            );
-        
+            Mat4::from_translation(Vec3::new(
+                root_layout.content_box_x(),
+                // Gemini AI slop generated to uhh do whatever to translate
+                // Taffy's 0,0 on top to WGPU's 0,0 at bottom left
+                self.screen_height - root_layout.content_box_y() - root_layout.content_box_height(),
+                0.0,
+            )),
+            root_layout.content_box_width(),
+            root_layout.content_box_height(),
+            root,
+        );
+
         if do_ret {
-            return
+            return;
         }
 
         let mut stack = Vec::new();
@@ -157,17 +160,15 @@ impl UI {
                     depth as f32,
                 ));
 
-            let child_cell = self.taffy
-                .get_node_context(child)
-                .unwrap();
-            
+            let child_cell = self.taffy.get_node_context(child).unwrap();
+
             let do_ret = consumer(
                 child_matrix,
                 layout.content_box_width(),
                 layout.content_box_height(),
-                child_cell
+                child_cell,
             );
-            
+
             if do_ret {
                 break;
             }
@@ -194,6 +195,55 @@ impl Screen for UI {
         delta_time: Duration,
         event: &sdl3::event::Event,
     ) -> anyhow::Result<EventHandleResult> {
+        let translated;
+        match event {
+            sdl3::event::Event::MouseButtonDown {
+                mouse_btn: button,
+                x,
+                y,
+                ..
+            } => {
+                translated = crate::events::Event::MouseDown {
+                    x: *x,
+                    // Flip the Y axis, so its starting from
+                    // bottom left. Needed because screen coordinate
+                    // is in term of WGPU's way so coords are inverted
+                    // correctly
+                    y: self.screen_height - *y,
+                    button: *button,
+                };
+            }
+            sdl3::event::Event::MouseButtonUp {
+                mouse_btn: button,
+                x,
+                y,
+                ..
+            } => {
+                translated = crate::events::Event::MouseUp {
+                    x: *x,
+                    // Flip the Y axis, so its starting from
+                    // bottom left. Needed because screen coordinate
+                    // is in term of WGPU's way so coords are inverted
+                    // correctly
+                    y: self.screen_height - *y,
+                    button: *button,
+                };
+            }
+            _ => return Ok(EventHandleResult::Pass),
+        }
+
+        self.iter_tree(|transform, width, height, node| {
+            let transform_inverse = transform.inverse();
+            let mut event = translated.clone();
+            event.transform_coords(transform_inverse);
+            let result = node
+                .borrow_mut()
+                .handle_event(transform, width, height, delta_time, event);
+
+            // If event consumed, stop handling it
+            matches!(result, EventHandleResult::Consumed)
+        });
+
         Ok(EventHandleResult::Pass)
     }
 
@@ -264,20 +314,14 @@ impl Screen for UI {
         self.screen_width = new_screen_width;
         self.screen_height = new_screen_height;
 
+        self.projection_matrix =
+            Mat4::orthographic_lh(0.0, new_screen_width, 0.0, new_screen_height, 0.0, 100000.0);
+
         self.camera.set(
             0,
             states::data_loader::get(),
             &Camera {
-                // NOTE: in UI, 0.0 is top left
-                // so the "height" coord is at bottom
-                projection_matrix: Mat4::orthographic_lh(
-                    0.0,
-                    new_screen_width,
-                    0.0,
-                    new_screen_height,
-                    0.0,
-                    100000.0,
-                ),
+                projection_matrix: self.projection_matrix,
             },
         );
     }

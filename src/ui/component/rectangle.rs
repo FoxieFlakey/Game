@@ -1,7 +1,7 @@
 use glam::{Mat4, Vec3, Vec4};
 
 use crate::{
-    events::EventHandleResult,
+    events::{self, EventHandleResult},
     ui::{
         component::Component,
         primitives::{self, UIPrimitive},
@@ -13,11 +13,22 @@ pub struct Rectangle;
 impl Component for Rectangle {
     fn handle_event(
         &mut self,
-        invert_transform_matrix: glam::Mat4,
+        transform_matrix: glam::Mat4,
         width: f32,
         height: f32,
         delta_time: std::time::Duration,
+        event: events::Event,
     ) -> crate::events::EventHandleResult {
+        match event {
+            events::Event::MouseDown { x, y, button } => {
+                println!("Down at {x}, {y}");
+            }
+
+            events::Event::MouseUp { x, y, button } => {
+                println!("Up at {x}, {y}");
+            }
+        }
+
         EventHandleResult::Pass
     }
 
