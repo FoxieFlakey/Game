@@ -7,6 +7,12 @@ use crate::{events, ui::primitives::UIPrimitive};
 mod rectangle;
 pub use rectangle::Rectangle;
 
+mod row;
+pub use row::Row;
+
+mod column;
+pub use column::Column;
+
 pub trait Component {
     // To user, min and max size of a component
     // MUST not be modified to be less restrictive

@@ -91,6 +91,22 @@ impl UI {
         this
     }
 
+    pub fn get_root_node(&self) -> taffy::NodeId {
+        self.root_id
+    }
+
+    pub fn add_child<T: Component + 'static>(&mut self, root: taffy::NodeId, component: T) -> taffy::NodeId {
+        let child = self
+            .taffy
+            .new_leaf_with_context(
+                component.get_base_style(),
+                RefCell::new(Box::new(component)),
+            )
+            .unwrap();
+        self.taffy.add_child(root, child).unwrap();
+        child
+    }
+
     fn iter_tree<F>(&self, mut consumer: F)
     // Return true to quit iteration early
     where
@@ -110,14 +126,15 @@ impl UI {
         let root_layout = self.taffy.layout(self.root_id).unwrap();
         let root = self.taffy.get_node_context(self.root_id).unwrap();
 
-        let do_ret = consumer(
-            Mat4::from_translation(Vec3::new(
+        let parent_transform_matrix = Mat4::from_translation(Vec3::new(
                 root_layout.content_box_x(),
                 // Gemini AI slop generated to uhh do whatever to translate
                 // Taffy's 0,0 on top to WGPU's 0,0 at bottom left
                 self.screen_height - root_layout.content_box_y() - root_layout.content_box_height(),
                 0.0,
-            )),
+            ));
+        let do_ret = consumer(
+            parent_transform_matrix,
             root_layout.content_box_width(),
             root_layout.content_box_height(),
             root,
@@ -129,14 +146,12 @@ impl UI {
 
         let mut stack = Vec::new();
         stack.push(State {
-            parent_transform_matrix: Mat4::IDENTITY,
+            parent_transform_matrix,
             childs: Box::new(self.taffy.child_ids(self.root_id)),
             parent_height: root_layout.content_box_height(),
         });
 
         loop {
-            // Depth 0.0 is used by root before
-            let depth = stack.len() + 1;
             let Some(top) = stack.last_mut() else {
                 // Traversed all nodes starting from root
                 break;
@@ -155,9 +170,9 @@ impl UI {
                     // Gemini AI slop generated to uhh do whatever to translate
                     // Taffy's 0,0 on top to WGPU's 0,0 at bottom left
                     top.parent_height
-                        - root_layout.content_box_height()
-                        - root_layout.content_box_y(),
-                    depth as f32,
+                        - layout.content_box_height()
+                        - layout.content_box_y(),
+                    1.0,
                 ));
 
             let child_cell = self.taffy.get_node_context(child).unwrap();
@@ -291,7 +306,7 @@ impl Screen for UI {
                 depth_slice: None,
                 view: output_view,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLUE),
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                     store: wgpu::StoreOp::Store,
                 },
                 resolve_target: None,

@@ -229,11 +229,19 @@ async fn late_init() -> anyhow::Result<impl FnOnce(&mut Resources) -> anyhow::Re
 
         stack.pop_screen();
         let renderer = resources.renderer_resource.get();
-        stack.push_screen(UI::new(
+        let mut ui = UI::new(
             renderer.get_render_size().0.get() as f32,
             renderer.get_render_size().1.get() as f32,
-            ui::component::Rectangle,
-        ));
+            ui::component::Row,
+        );
+
+        ui.add_child(ui.get_root_node(), ui::component::Rectangle);
+
+        let side = ui.add_child(ui.get_root_node(), ui::component::Column);
+        ui.add_child(side, ui::component::Rectangle);
+        ui.add_child(side, ui::component::Rectangle);
+
+        stack.push_screen(ui);
 
         Ok(())
     })
