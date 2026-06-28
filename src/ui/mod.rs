@@ -5,7 +5,7 @@ use smallvec::{SmallVec, smallvec};
 use taffy::TraversePartialTree;
 
 use crate::{
-    events::EventHandleResult,
+    events::{self, EventHandleResult},
     rendering::buffer::{BufferKind, VecBuf},
     screen::Screen,
     states,
@@ -89,57 +89,23 @@ impl UI {
         this.on_resize(screen_width, screen_height);
         this
     }
-}
-
-pub fn init() -> anyhow::Result<()> {
-    primitives::init();
-
-    Ok(())
-}
-
-impl Screen for UI {
-    fn handle_event(
-        &mut self,
-        delta_time: Duration,
-        event: &sdl3::event::Event,
-    ) -> anyhow::Result<EventHandleResult> {
-        Ok(EventHandleResult::Pass)
-    }
-
-    fn render(
-        &mut self,
-        delta_time: Duration,
-        output_view: &wgpu::TextureView,
-        cmd_encoder_creator: &dyn Fn(&wgpu::CommandEncoderDescriptor) -> wgpu::CommandEncoder,
-    ) -> anyhow::Result<SmallVec<[wgpu::CommandBuffer; crate::screen::STACK_ALLOCATED_COUNT]>> {
-        self.taffy
-            .compute_layout(
-                self.root_id,
-                taffy::Size {
-                    width: taffy::AvailableSpace::Definite(self.screen_width),
-                    height: taffy::AvailableSpace::Definite(self.screen_height),
-                },
-            )
-            .unwrap();
-
+    
+    fn iter_tree<F>(&self, mut consumer: F)
+        // Return true to quit iteration early
+        where F: FnMut(/* Transform matrix */ Mat4, /* width */ f32, /* height */ f32, /* component */ &RefCell<Box<dyn Component>>) -> bool
+    {
         struct State<'a> {
             parent_transform_matrix: Mat4,
             parent_height: f32,
             childs: Box<dyn Iterator<Item = taffy::NodeId> + 'a>,
         }
-
-        let mut primitives = Vec::new();
-
-        // Render the root first
-        // PHASE 1: Traverse entire tree
-        // and collect all ui primitives
-
+        
         let root_layout = self.taffy.layout(self.root_id).unwrap();
-        self.taffy
+        let root = self.taffy
             .get_node_context(self.root_id)
-            .unwrap()
-            .borrow_mut()
-            .render(
+            .unwrap();
+        
+        let do_ret = consumer(
                 Mat4::from_translation(Vec3::new(
                     root_layout.content_box_x(),
                     // Gemini AI slop generated to uhh do whatever to translate
@@ -151,9 +117,12 @@ impl Screen for UI {
                 )),
                 root_layout.content_box_width(),
                 root_layout.content_box_height(),
-                delta_time,
-                &mut |x| primitives.push(x),
+                root
             );
+        
+        if do_ret {
+            return
+        }
 
         let mut stack = Vec::new();
         stack.push(State {
@@ -188,17 +157,20 @@ impl Screen for UI {
                     depth as f32,
                 ));
 
-            self.taffy
+            let child_cell = self.taffy
                 .get_node_context(child)
-                .unwrap()
-                .borrow_mut()
-                .render(
-                    child_matrix,
-                    layout.content_box_width(),
-                    layout.content_box_height(),
-                    delta_time,
-                    &mut |x| primitives.push(x),
-                );
+                .unwrap();
+            
+            let do_ret = consumer(
+                child_matrix,
+                layout.content_box_width(),
+                layout.content_box_height(),
+                child_cell
+            );
+            
+            if do_ret {
+                break;
+            }
 
             // Push current child, so its child can be iterated
             stack.push(State {
@@ -207,6 +179,49 @@ impl Screen for UI {
                 parent_height: layout.content_box_height(),
             });
         }
+    }
+}
+
+pub fn init() -> anyhow::Result<()> {
+    primitives::init();
+
+    Ok(())
+}
+
+impl Screen for UI {
+    fn handle_event(
+        &mut self,
+        delta_time: Duration,
+        event: &sdl3::event::Event,
+    ) -> anyhow::Result<EventHandleResult> {
+        Ok(EventHandleResult::Pass)
+    }
+
+    fn render(
+        &mut self,
+        delta_time: Duration,
+        output_view: &wgpu::TextureView,
+        cmd_encoder_creator: &dyn Fn(&wgpu::CommandEncoderDescriptor) -> wgpu::CommandEncoder,
+    ) -> anyhow::Result<SmallVec<[wgpu::CommandBuffer; crate::screen::STACK_ALLOCATED_COUNT]>> {
+        self.taffy
+            .compute_layout(
+                self.root_id,
+                taffy::Size {
+                    width: taffy::AvailableSpace::Definite(self.screen_width),
+                    height: taffy::AvailableSpace::Definite(self.screen_height),
+                },
+            )
+            .unwrap();
+
+        let mut primitives = Vec::new();
+
+        // PHASE 1: Traverse entire tree and collect all ui primitives
+        let mut pusher = |x| primitives.push(x);
+        self.iter_tree(|transform, width, height, node| {
+            node.borrow_mut()
+                .render(transform, width, height, delta_time, &mut pusher);
+            false
+        });
 
         // Phase 2: Now fill the primitives into corresponding instance buffer :3
         self.colored_rects.clear();
