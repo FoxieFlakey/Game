@@ -13,6 +13,12 @@ struct VertexOutput {
   @location(0) color: vec4f
 }
 
+struct CameraUniform {
+  projection_matrix: mat4x4f
+}
+
+@group(0) @binding(0) var<uniform> camera: CameraUniform;
+
 // Vertex shader, does pretty basic operation of
 // multiplying vector with transform matrix
 @vertex
@@ -28,7 +34,7 @@ fn vs_main(
   );
   
   var out: VertexOutput;
-  out.result_pos = transform * vec4f(input.pos, 1.0);
+  out.result_pos = camera.projection_matrix * transform * vec4f(input.pos, 1.0);
   out.color = input.color;
   return out;
 }

@@ -7,7 +7,7 @@ use crate::{
         buffer::VecBuf,
         pipeline::{Pipeline, VertexBufs, vertex_buffer_layout},
     },
-    states,
+    states, ui,
     util::{identifier::Identifier, static_gpu_buffer},
 };
 
@@ -42,13 +42,13 @@ vertex_buffer_layout!(Instance as Instance => [
 static_gpu_buffer!(
     static Vertex VERTEX_BUFFER: LazyLock<VecBuf<[Vertex]>> => [
         // Bottom left
-        Vertex { coord: Vec3 { x: -1.0, y: -1.0, z: 0.0 } },
+        Vertex { coord: Vec3 { x:  0.0, y:  0.0, z: 0.0 } },
         // Bottom right
-        Vertex { coord: Vec3 { x:  1.0, y: -1.0, z: 0.0 } },
+        Vertex { coord: Vec3 { x:  1.0, y:  0.0, z: 0.0 } },
         // Top right
         Vertex { coord: Vec3 { x:  1.0, y:  1.0, z: 0.0 } },
         // Top left
-        Vertex { coord: Vec3 { x: -1.0, y:  1.0, z: 0.0 } },
+        Vertex { coord: Vec3 { x:  0.0, y:  1.0, z: 0.0 } },
     ];
 
     static Index INDEX_BUFFER: LazyLock<VecBuf<[u16]>> => [
@@ -75,7 +75,13 @@ static PIPELINE: LazyLock<Pipeline<u16, Vertex, Instance>> = LazyLock::new(|| {
             blend: Some(wgpu::BlendState::REPLACE),
             write_mask: wgpu::ColorWrites::ALL,
         })],
-        None,
+        Some(
+            &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                immediate_size: 0,
+                label: None,
+                bind_group_layouts: &[Some(&ui::CAMERA_BIND_LAYOUT)],
+            }),
+        ),
     )
 });
 
@@ -83,7 +89,12 @@ impl Instance {
     pub const SHADER_ID: Identifier = Identifier::new_const("ui/colored_rectangle");
 }
 
-pub fn render(render_pass: &mut wgpu::RenderPass, instances: &VecBuf<Instance>) {
+pub fn render(
+    render_pass: &mut wgpu::RenderPass,
+    camera_group: &wgpu::BindGroup,
+    instances: &VecBuf<Instance>,
+) {
+    render_pass.set_bind_group(0, camera_group, &[]);
     PIPELINE.render(
         render_pass,
         &VertexBufs {

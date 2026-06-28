@@ -76,6 +76,10 @@ impl<T: Copy + bytemuck::Pod> VecBuf<T> {
         self.len
     }
 
+    pub fn clear(&mut self) {
+        self.len = 0;
+    }
+
     pub fn copy_from_slice(&mut self, data_loader: &DataLoader, data: &[T]) {
         assert_eq!(
             self.len,

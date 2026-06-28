@@ -232,6 +232,7 @@ async fn late_init() -> anyhow::Result<impl FnOnce(&mut Resources) -> anyhow::Re
         stack.push_screen(UI::new(
             renderer.get_render_size().0.get() as f32,
             renderer.get_render_size().1.get() as f32,
+            ui::component::Rectangle,
         ));
 
         Ok(())
