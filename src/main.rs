@@ -81,10 +81,7 @@ pub struct SdlState {
 pub struct MainState {
     window: Window,
     screen_stack: ScreenStack,
-
     render_aspect_ratio: f32,
-    render_width: f32,
-    render_height: f32,
 }
 
 struct Resources {
@@ -104,6 +101,8 @@ impl Resources {
         panic!("Something horribly gone wrong, poll loop for resources intended to never finishes");
     }
 }
+
+const RENDER_ASPECT_RATIO: f32 = 1280.0 / 720.0;
 
 async fn init() -> anyhow::Result<Resources> {
     rendering::init().await?;
@@ -155,14 +154,20 @@ async fn init() -> anyhow::Result<Resources> {
         info.name, info.backend, info.device_pci_bus_id
     );
 
-    let render_width = NonZero::new(1280).unwrap();
-    let render_height = NonZero::new(720).unwrap();
-    let render_aspect_ratio = render_width.get() as f32 / render_height.get() as f32;
-
+    let (render_width, render_height) = calc_render_sizing(
+        window.get_size().0 as f32,
+        window.get_size().1 as f32,
+        RENDER_ASPECT_RATIO,
+    );
     let render_format = wgpu::TextureFormat::Rgba16Float;
-    let mut renderer = Renderer::new(gpu, render_format, render_width, render_height)
-        .await
-        .context("Initializing renderer")?;
+    let mut renderer = Renderer::new(
+        gpu,
+        render_format,
+        NonZero::new(render_width as u32).unwrap(),
+        NonZero::new(render_height as u32).unwrap(),
+    )
+    .await
+    .context("Initializing renderer")?;
     let (width, height) = window.get_size();
     let default = NonZero::new(10).unwrap();
     renderer.set_output_size((
@@ -192,19 +197,14 @@ async fn init() -> anyhow::Result<Resources> {
     );
 
     let mut stack = ScreenStack::new();
-    stack.push_screen(screen::LoadingScreen::new(
-        render_width.get() as f32,
-        render_height.get() as f32,
-    ));
+    stack.push_screen(screen::LoadingScreen::new(render_width, render_height));
 
     let (main_resource, accessor) = LocalResource::new(
         "Main state",
         MainState {
             screen_stack: stack,
             window,
-            render_height: render_height.get() as f32,
-            render_aspect_ratio,
-            render_width: render_width.get() as f32,
+            render_aspect_ratio: RENDER_ASPECT_RATIO,
         },
     );
     states::main::set(accessor);
@@ -450,26 +450,15 @@ fn handle_input(
                     .get_mut()
                     .set_output_size((width, height));
 
-                // Update new sizing, to be largest fit
-                let new_output_ratio = width.get() as f32 / height.get() as f32;
-                let mut main_state = resources.main_resource.get_mut();
-                if new_output_ratio > main_state.render_aspect_ratio {
-                    // Output is wider, so the height is bounded
-                    // and width is calculated
-                    main_state.render_height = height.get() as f32;
-                    main_state.render_width =
-                        main_state.render_height * main_state.render_aspect_ratio;
-                } else {
-                    // Output is taller, so the width is bounded
-                    // and height is calculated
-                    main_state.render_width = width.get() as f32;
-                    main_state.render_height =
-                        main_state.render_width / main_state.render_aspect_ratio;
-                }
+                let (new_render_width, new_render_height) = calc_render_sizing(
+                    width.get() as f32,
+                    height.get() as f32,
+                    resources.main_resource.get().render_aspect_ratio,
+                );
 
-                let new_render_width = main_state.render_width;
-                let new_render_height = main_state.render_width;
-                main_state
+                resources
+                    .main_resource
+                    .get_mut()
                     .screen_stack
                     .on_resize(new_render_width, new_render_height);
             }
@@ -485,6 +474,31 @@ fn handle_input(
     }
 
     Ok(())
+}
+
+fn calc_render_sizing(
+    new_output_width: f32,
+    new_output_height: f32,
+    desired_render_aspect: f32,
+) -> (f32, f32) {
+    let new_render_width;
+    let new_render_height;
+
+    // Update new sizing, to be largest fit
+    let new_output_ratio = new_output_width / new_output_height;
+    if new_output_ratio > desired_render_aspect {
+        // Output is wider, so the height is bounded
+        // and width is calculated
+        new_render_height = new_output_height;
+        new_render_width = new_render_height * desired_render_aspect;
+    } else {
+        // Output is taller, so the width is bounded
+        // and height is calculated
+        new_render_width = new_output_width;
+        new_render_height = new_render_width / desired_render_aspect;
+    }
+
+    (new_render_width, new_render_height)
 }
 
 fn do_render(resources: &mut Resources, delta_time: Duration) -> anyhow::Result<()> {
