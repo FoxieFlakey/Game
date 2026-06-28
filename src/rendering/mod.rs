@@ -134,6 +134,10 @@ impl Renderer {
         self.need_update_frame_cache = true;
     }
 
+    pub fn get_render_size(&self) -> (NonZeroU32, NonZeroU32) {
+        self.render_size
+    }
+
     pub fn set_blit_shader(&mut self, shader: &wgpu::ShaderModule) {
         self.blit_shader = Some(shader.clone());
 

@@ -14,14 +14,12 @@ use std::{
 
 use anyhow::Context;
 use futures::{FutureExt, future::OptionFuture, poll};
-use glam::{Mat4, Quat, Vec3, Vec4};
-use smallvec::SmallVec;
 
 use crate::{
     local_resource::LocalResource,
     rendering::Renderer,
     screen::{Screen, screen_stack::ScreenStack},
-    util::static_gpu_buffer,
+    ui::UI,
     window::Window,
 };
 
@@ -227,78 +225,14 @@ async fn late_init() -> anyhow::Result<impl FnOnce(&mut Resources) -> anyhow::Re
     ui::init().context("Initializing UI")?;
 
     Ok(move |resources: &mut Resources| {
-        struct Rect;
-
-        impl screen::Screen for Rect {
-            fn handle_event(
-                &mut self,
-                _delta_time: Duration,
-                _event: &sdl3::event::Event,
-            ) -> anyhow::Result<events::EventHandleResult> {
-                Ok(events::EventHandleResult::Pass)
-            }
-
-            fn render(
-                &mut self,
-                _delta_time: Duration,
-                output_view: &wgpu::TextureView,
-                cmd_encoder_creator: &dyn Fn(
-                    &wgpu::CommandEncoderDescriptor,
-                ) -> wgpu::CommandEncoder,
-            ) -> anyhow::Result<SmallVec<[wgpu::CommandBuffer; screen::STACK_ALLOCATED_COUNT]>>
-            {
-                static_gpu_buffer!(
-                    static Vertex RECTANGLES: LazyLock<VecBuf<[ui::primitives::ColoredRectangle]>> => [
-                        ui::primitives::ColoredRectangle {
-                            color: Vec4::new(0.5, 0.2, 0.2, 1.0),
-                            transform: Mat4::from_scale_rotation_translation(
-                                Vec3::new(0.2, 0.5, 1.0),
-                                Quat::from_rotation_z(30.0_f32.to_radians()),
-                                Vec3::new(0.0, -0.4, 0.0)
-                            )
-                        },
-
-                        ui::primitives::ColoredRectangle {
-                            color: Vec4::new(0.0, 0.6, 0.2, 1.0),
-                            transform: Mat4::from_scale_rotation_translation(
-                                Vec3::new(0.2, 0.1, 1.0),
-                                Quat::from_rotation_z(50.0_f32.to_radians()),
-                                Vec3::new(0.0, 0.4, 0.0)
-                            )
-                        }
-                    ];
-                );
-
-                let mut cmd_buf = cmd_encoder_creator(&wgpu::CommandEncoderDescriptor {
-                    label: Some("Draw colored rectangles"),
-                });
-
-                let mut render_pass = cmd_buf.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("Draw colored rectangle"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: output_view,
-                        depth_slice: None,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Load,
-                            store: wgpu::StoreOp::Store,
-                        },
-                    })],
-                    ..Default::default()
-                });
-
-                ui::primitives::render_colored_rectangle(&mut render_pass, &RECTANGLES);
-
-                drop(render_pass);
-                Ok(smallvec::smallvec![cmd_buf.finish()])
-            }
-        }
-
-        // Lets display the glory rectangles :>
         let stack = &mut resources.main_resource.get_mut().screen_stack;
 
         stack.pop_screen();
-        stack.push_screen(Rect);
+        let renderer = resources.renderer_resource.get();
+        stack.push_screen(UI::new(
+            renderer.get_render_size().0.get() as f32,
+            renderer.get_render_size().1.get() as f32,
+        ));
 
         Ok(())
     })
