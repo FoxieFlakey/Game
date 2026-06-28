@@ -24,7 +24,7 @@ pub struct UI {
     taffy: taffy::TaffyTree<RefCell<Box<dyn Component>>>,
     root_id: taffy::NodeId,
     projection_matrix: Mat4,
-    colored_rects: VecBuf<primitives::ColoredRectangle>,
+    colored_rects: Option<VecBuf<primitives::ColoredRectangle>>,
 }
 
 #[repr(C)]
@@ -70,7 +70,7 @@ impl UI {
             // Fake placeholder leaf, going to be replaced after Self is constructed
             root_id: taffy.new_leaf(taffy::Style::DEFAULT).unwrap(),
             taffy,
-            colored_rects: VecBuf::new(states::main_dev::get().clone(), BufferKind::Vertex),
+            colored_rects: Some(VecBuf::new(states::main_dev::get().clone(), BufferKind::Vertex)),
             camera_bind_group: states::main_dev::get().create_bind_group(
                 &wgpu::BindGroupDescriptor {
                     layout: &CAMERA_BIND_LAYOUT,
@@ -300,26 +300,24 @@ impl Screen for UI {
             )
             .unwrap();
 
-        let mut primitives = Vec::new();
-
         // PHASE 1: Traverse entire tree and collect all ui primitives
-        let mut pusher = |x| primitives.push(x);
+        let mut colored_rects = self.colored_rects.take().unwrap();
+        colored_rects.clear();
+        
+        let data_loader = states::data_loader::get();
+        let mut pusher = |x| {
+            match x {
+                UIPrimitive::ColoredRectangle(x) => colored_rects.push(data_loader, x)
+            }
+        };
+        
         self.iter_tree(|transform, width, height, node| {
             node.borrow_mut()
                 .render(transform, width, height, delta_time, &mut pusher);
             false
         });
-
-        // Phase 2: Now fill the primitives into corresponding instance buffer :3
-        self.colored_rects.clear();
-
-        for primitive in primitives {
-            match primitive {
-                UIPrimitive::ColoredRectangle(x) => self
-                    .colored_rects
-                    .extend_from_slice(states::data_loader::get(), &[x]),
-            }
-        }
+        
+        self.colored_rects = Some(colored_rects);
 
         // Phase 3: Render all primitives
         let mut encoder = cmd_encoder_creator(&wgpu::CommandEncoderDescriptor::default());
@@ -340,7 +338,7 @@ impl Screen for UI {
         primitives::render_colored_rectangle(
             &mut render_pass,
             &self.camera_bind_group,
-            &self.colored_rects,
+            self.colored_rects.as_ref().unwrap(),
         );
 
         drop(render_pass);

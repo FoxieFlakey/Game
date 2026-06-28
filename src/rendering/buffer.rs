@@ -99,6 +99,10 @@ impl<T: Copy + bytemuck::Pod> VecBuf<T> {
         );
     }
 
+    pub fn push(&mut self, data_loader: &DataLoader, data: T) {
+        self.extend_from_slice(data_loader, &[data]);
+    }
+
     pub fn extend_from_slice(&mut self, data_loader: &DataLoader, data: &[T]) {
         self.check_capacity(data_loader, self.len() + data.len());
 
