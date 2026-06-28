@@ -1,4 +1,4 @@
-use crate::ui::component::Component;
+use crate::ui::component::{Component, ComponentBuilder};
 
 pub struct Row;
 
@@ -16,25 +16,15 @@ impl Component for Row {
             ..Default::default()
         }
     }
+}
 
-    fn handle_event(
-        &mut self,
-        _transform_matrix: glam::Mat4,
-        _width: f32,
-        _height: f32,
-        _delta_time: std::time::Duration,
-        _event: crate::events::Event,
-    ) -> crate::events::EventHandleResult {
-        crate::events::EventHandleResult::Pass
-    }
+#[derive(Default)]
+pub struct RowBuilder<'a> {
+    pub children: &'a [&'a dyn ComponentBuilder<'a>]
+}
 
-    fn render(
-        &mut self,
-        _transform_matrix: glam::Mat4,
-        _width: f32,
-        _height: f32,
-        _delta_time: std::time::Duration,
-        _primitive_collector: &mut dyn FnMut(crate::ui::primitives::UIPrimitive),
-    ) {
+impl<'a> ComponentBuilder<'a> for RowBuilder<'a> {
+    fn build(&self) -> (Box<dyn Component>, &'a [&'a dyn ComponentBuilder<'a>]) {
+        (Box::new(Row), self.children)
     }
 }

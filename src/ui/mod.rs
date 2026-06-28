@@ -9,7 +9,7 @@ use crate::{
     rendering::buffer::{BufferKind, VecBuf},
     screen::Screen,
     states,
-    ui::{component::Component, primitives::UIPrimitive},
+    ui::{component::{Component, ComponentBuilder}, primitives::UIPrimitive},
     util::vec_buf2,
 };
 
@@ -50,29 +50,26 @@ static CAMERA_BIND_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::new(|| {
 });
 
 impl UI {
-    pub fn new<T: Component + 'static>(
+    pub fn new<'a, T: ComponentBuilder<'a> + 'a>(
         screen_width: f32,
         screen_height: f32,
-        root_component: T,
+        root_builder: &'a T,
     ) -> Self {
         let mut taffy: taffy::TaffyTree<RefCell<Box<dyn Component>>> = taffy::TaffyTree::new();
 
-        let root_id = taffy.new_leaf(root_component.get_base_style()).unwrap();
-        taffy
-            .set_node_context(root_id, Some(RefCell::new(Box::new(root_component))))
-            .unwrap();
         let camera = vec_buf2!(
             Uniform,
             [Camera {
                 projection_matrix: Mat4::IDENTITY
             }]
         );
-
+        
         let mut this = Self {
             screen_width,
             screen_height,
+            // Fake placeholder leaf, going to be replaced after Self is constructed
+            root_id: taffy.new_leaf(taffy::Style::DEFAULT).unwrap(),
             taffy,
-            root_id,
             colored_rects: VecBuf::new(states::main_dev::get().clone(), BufferKind::Vertex),
             camera_bind_group: states::main_dev::get().create_bind_group(
                 &wgpu::BindGroupDescriptor {
@@ -87,6 +84,10 @@ impl UI {
             projection_matrix: Mat4::IDENTITY,
             camera,
         };
+        let new_root = this.build_component(root_builder);
+        this.taffy.remove(this.root_id).unwrap();
+        this.root_id = new_root;
+        
         this.on_resize(screen_width, screen_height);
         this
     }
@@ -95,7 +96,28 @@ impl UI {
         self.root_id
     }
 
-    pub fn add_child<T: Component + 'static>(&mut self, root: taffy::NodeId, component: T) -> taffy::NodeId {
+    fn build_component<'a>(&mut self, builder: &'a dyn ComponentBuilder<'a>) -> taffy::NodeId {
+        let (component, children) = builder.build();
+        let component_id = self.taffy.new_leaf_with_context(
+            component.get_base_style(),
+            RefCell::new(component)
+        ).unwrap();
+        
+        for child_builder in children {
+            let child = self.build_component(*child_builder);
+            self.taffy.add_child(component_id, child).unwrap();
+        }
+        
+        component_id
+    }
+    
+    pub fn add_child<'a, T: ComponentBuilder<'a> + 'a>(&mut self, parent: taffy::NodeId, builder: &'a T) -> taffy::NodeId {
+        let child = self.build_component(builder);
+        self.taffy.add_child(parent, child).unwrap();
+        child
+    }
+
+    pub fn add_child_built<T: Component + 'static>(&mut self, root: taffy::NodeId, component: T) -> taffy::NodeId {
         let child = self
             .taffy
             .new_leaf_with_context(

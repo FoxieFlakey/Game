@@ -6,12 +6,23 @@ use crate::{events, ui::primitives::UIPrimitive};
 
 mod rectangle;
 pub use rectangle::Rectangle;
+pub use rectangle::RectangleBuilder;
 
 mod row;
 pub use row::Row;
+pub use row::RowBuilder;
 
 mod column;
 pub use column::Column;
+pub use column::ColumnBuilder;
+
+pub trait ComponentBuilder<'a> {
+    // returns the built component
+    // and the children builders
+    //
+    // Callin again would give same values
+    fn build(&self) -> (Box<dyn Component>, &'a [&'a dyn ComponentBuilder<'a>]);
+}
 
 pub trait Component {
     // To user, min and max size of a component
@@ -39,7 +50,13 @@ pub trait Component {
         height: f32,
         delta_time: Duration,
         primitive_collector: &mut dyn FnMut(UIPrimitive),
-    );
+    ) {
+        let _ = transform_matrix;
+        let _ = width;
+        let _ = height;
+        let _ = delta_time;
+        let _ = primitive_collector;
+    }
 
     // These receives borrow to the same UI
     // that the components attached to
@@ -62,5 +79,13 @@ pub trait Component {
         height: f32,
         delta_time: Duration,
         event: events::Event,
-    ) -> events::EventHandleResult;
+    ) -> events::EventHandleResult {
+        let _ = transform_matrix;
+        let _ = width;
+        let _ = height;
+        let _ = delta_time;
+        let _ = event;
+        
+        events::EventHandleResult::Pass
+    }
 }

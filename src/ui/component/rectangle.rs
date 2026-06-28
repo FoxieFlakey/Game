@@ -3,12 +3,14 @@ use glam::{Mat4, Vec3, Vec4};
 use crate::{
     events::{self, EventHandleResult},
     ui::{
-        component::Component,
+        component::{Component, ComponentBuilder},
         primitives::{self, UIPrimitive},
     },
 };
 
-pub struct Rectangle;
+pub struct Rectangle {
+    color: Vec4
+}
 
 impl Component for Rectangle {
     fn handle_event(
@@ -74,9 +76,20 @@ impl Component for Rectangle {
     ) {
         primitive_collector(UIPrimitive::ColoredRectangle(
             primitives::ColoredRectangle {
-                color: Vec4::new(1.0, 0.0, 1.0, 1.0),
+                color: self.color,
                 transform: transform_matrix * Mat4::from_scale(Vec3::new(width, height, 1.0)),
             },
         ));
+    }
+}
+
+#[derive(Default)]
+pub struct RectangleBuilder {
+    pub color: Vec4
+}
+
+impl<'a> ComponentBuilder<'a> for RectangleBuilder {
+    fn build(&self) -> (Box<dyn Component>, &'a [&'a dyn ComponentBuilder<'a>]) {
+        (Box::new(Rectangle { color: self.color }), &[])
     }
 }

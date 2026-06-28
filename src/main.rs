@@ -14,6 +14,7 @@ use std::{
 
 use anyhow::Context;
 use futures::{FutureExt, future::OptionFuture, poll};
+use glam::Vec4;
 
 use crate::{
     local_resource::LocalResource,
@@ -229,17 +230,34 @@ async fn late_init() -> anyhow::Result<impl FnOnce(&mut Resources) -> anyhow::Re
 
         stack.pop_screen();
         let renderer = resources.renderer_resource.get();
-        let mut ui = UI::new(
+        let ui = UI::new(
             renderer.get_render_size().0.get() as f32,
             renderer.get_render_size().1.get() as f32,
-            ui::component::Row,
+            &ui::component::RowBuilder {
+                children: &[
+                    &ui::component::ColumnBuilder {
+                        children: &[
+                            &ui::component::RectangleBuilder {
+                                color: Vec4::new(0.5, 0.0, 0.0, 1.0)
+                            },
+                            &ui::component::RectangleBuilder {
+                                color: Vec4::new(0.0, 0.0, 0.5, 1.0)
+                            }
+                        ]
+                    },
+                    &ui::component::ColumnBuilder {
+                        children: &[
+                            &ui::component::RectangleBuilder {
+                                color: Vec4::new(0.0, 0.5, 0.0, 1.0)
+                            },
+                            &ui::component::RectangleBuilder {
+                                color: Vec4::new(0.5, 0.5, 0.0, 1.0)
+                            }
+                        ]
+                    },
+                ]
+            },
         );
-
-        ui.add_child(ui.get_root_node(), ui::component::Rectangle);
-
-        let side = ui.add_child(ui.get_root_node(), ui::component::Column);
-        ui.add_child(side, ui::component::Rectangle);
-        ui.add_child(side, ui::component::Rectangle);
 
         stack.push_screen(ui);
 
