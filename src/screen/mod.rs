@@ -24,4 +24,9 @@ pub trait Screen: 'static {
         delta_time: Duration,
         event: &sdl3::event::Event,
     ) -> anyhow::Result<EventHandleResult>;
+
+    fn on_resize(&mut self, new_screen_width: f32, new_screen_height: f32) {
+        let _ = new_screen_height;
+        let _ = new_screen_width;
+    }
 }

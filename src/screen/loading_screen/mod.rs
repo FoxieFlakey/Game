@@ -48,6 +48,11 @@ static CAMERA_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::new
     })
 });
 
+// Icon is scaled to be 120px by 120px on bottom right
+const ICON_SIZE: f32 = 120.0;
+const ICON_RIGHT_OFFSET: f32 = 70.0;
+const ICON_BOTTOM_OFFSET: f32 = 70.0;
+
 impl LoadingScreen {
     pub const ICON_SHADER_ID: Identifier = Identifier::new_const("early/loading_icon");
     pub const ICON_TEXTURE_ID: Identifier = Identifier::new_const("early/loading_icon");
@@ -62,7 +67,14 @@ impl LoadingScreen {
             states::data_loader::get(),
             BufferKind::Uniform,
             &[Camera {
-                projection_matrix: Mat4::orthographic_lh(0.0, screen_width, 0.0, screen_height, 0.0, 1.0),
+                projection_matrix: Mat4::orthographic_lh(
+                    0.0,
+                    screen_width,
+                    0.0,
+                    screen_height,
+                    0.0,
+                    1.0,
+                ),
             }],
         );
 
@@ -75,10 +87,10 @@ impl LoadingScreen {
 
         Self {
             loading_paws,
-            scale: Vec3::splat(120.0),
+            scale: Vec3::splat(ICON_SIZE),
             translation: Vec3 {
-                y: 70.0,
-                x: screen_width - 70.0,
+                y: ICON_BOTTOM_OFFSET,
+                x: screen_width - ICON_RIGHT_OFFSET,
                 z: 0.0,
             },
             camera_bind_group: states::main_dev::get().create_bind_group(
@@ -151,5 +163,28 @@ impl Screen for LoadingScreen {
 
         drop(render_pass);
         Ok(smallvec![encoder.finish()])
+    }
+
+    fn on_resize(&mut self, new_screen_width: f32, new_screen_height: f32) {
+        self._camera_buffer.set(
+            0,
+            states::data_loader::get(),
+            &Camera {
+                projection_matrix: Mat4::orthographic_lh(
+                    0.0,
+                    new_screen_width,
+                    0.0,
+                    new_screen_height,
+                    0.0,
+                    1.0,
+                ),
+            },
+        );
+
+        self.translation = Vec3 {
+            y: ICON_BOTTOM_OFFSET,
+            x: new_screen_width - ICON_RIGHT_OFFSET,
+            z: 0.0,
+        };
     }
 }

@@ -44,6 +44,13 @@ impl Screen for ScreenStack {
         Ok(EventHandleResult::Pass)
     }
 
+    fn on_resize(&mut self, new_screen_width: f32, new_screen_height: f32) {
+        // Top most screen receives resizing first beffore lower level
+        for screen in self.stack.iter_mut().rev() {
+            screen.on_resize(new_screen_width, new_screen_height);
+        }
+    }
+
     fn render(
         &mut self,
         delta_time: Duration,
