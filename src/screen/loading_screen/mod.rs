@@ -52,7 +52,7 @@ impl LoadingScreen {
     pub const ICON_SHADER_ID: Identifier = Identifier::new_const("early/loading_icon");
     pub const ICON_TEXTURE_ID: Identifier = Identifier::new_const("early/loading_icon");
 
-    pub fn new() -> Self {
+    pub fn new(screen_width: f32, screen_height: f32) -> Self {
         // Explicitly make sure all of the resources loaded
         LazyLock::force(&loading_paw_model::LOADING_PAW);
         LazyLock::force(&CAMERA_BIND_GROUP_LAYOUT);
@@ -62,7 +62,7 @@ impl LoadingScreen {
             states::data_loader::get(),
             BufferKind::Uniform,
             &[Camera {
-                projection_matrix: Mat4::orthographic_lh(0.0, 1280.0, 0.0, 720.0, 0.0, 1.0),
+                projection_matrix: Mat4::orthographic_lh(0.0, screen_width, 0.0, screen_height, 0.0, 1.0),
             }],
         );
 
@@ -78,7 +78,7 @@ impl LoadingScreen {
             scale: Vec3::splat(120.0),
             translation: Vec3 {
                 y: 70.0,
-                x: 1280.0 - 70.0,
+                x: screen_width - 70.0,
                 z: 0.0,
             },
             camera_bind_group: states::main_dev::get().create_bind_group(

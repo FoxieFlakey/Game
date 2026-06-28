@@ -6,7 +6,7 @@
 
 use std::{
     ffi::CStr,
-    num::NonZero,
+    num::{NonZero, NonZeroU32},
     pin::Pin,
     task::Poll,
     time::{Duration, Instant},
@@ -81,6 +81,10 @@ pub struct SdlState {
 pub struct MainState {
     window: Window,
     screen_stack: ScreenStack,
+    
+    render_aspect_ratio: f32,
+    render_width: NonZeroU32,
+    render_height: NonZeroU32
 }
 
 struct Resources {
@@ -151,12 +155,16 @@ async fn init() -> anyhow::Result<Resources> {
         info.name, info.backend, info.device_pci_bus_id
     );
 
+    let render_width = NonZero::new(1280).unwrap();
+    let render_height = NonZero::new(720).unwrap();
+    let render_aspect_ratio = render_width.get() as f32 / render_height.get() as f32;
+    
     let render_format = wgpu::TextureFormat::Rgba16Float;
     let mut renderer = Renderer::new(
         gpu,
         render_format,
-        NonZero::new(500).unwrap(),
-        NonZero::new(500).unwrap(),
+        render_width,
+        render_height,
     )
     .await
     .context("Initializing renderer")?;
@@ -189,13 +197,19 @@ async fn init() -> anyhow::Result<Resources> {
     );
 
     let mut stack = ScreenStack::new();
-    stack.push_screen(screen::LoadingScreen::new());
+    stack.push_screen(screen::LoadingScreen::new(
+        render_width.get() as f32,
+        render_height.get() as f32
+    ));
 
     let (main_resource, accessor) = LocalResource::new(
         "Main state",
         MainState {
             screen_stack: stack,
             window,
+            render_height,
+            render_aspect_ratio,
+            render_width
         },
     );
     states::main::set(accessor);
