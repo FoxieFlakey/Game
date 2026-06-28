@@ -2,9 +2,11 @@ use glam::{Vec2, Vec3};
 
 use crate::{
     rendering::{
+        buffer::{BufferKind, VecBuf},
         pipeline::{Pipeline, VertexBufs, vertex_buffer_layout},
         util,
     },
+    states,
     util::static_gpu_buffer,
 };
 
@@ -20,6 +22,21 @@ pub struct FrameBlitter {
     sampler: wgpu::Sampler,
     pipeline: Pipeline<u16, Vertex>,
     device: wgpu::Device,
+    uniforms: VecBuf<Uniforms>,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct Uniforms {
+    // The width and height of the output
+    // in window
+    output_width: f32,
+    output_height: f32,
+
+    // The width and height of game
+    // viewport
+    render_width: f32,
+    render_height: f32,
 }
 
 impl FrameBlitter {
@@ -50,6 +67,17 @@ impl FrameBlitter {
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
                 },
+                // Uniform buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    count: None,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                },
             ],
         });
 
@@ -59,6 +87,17 @@ impl FrameBlitter {
             mipmap_filter: wgpu::MipmapFilterMode::Nearest,
             ..Default::default()
         });
+
+        let mut uniforms = VecBuf::new(device.clone(), BufferKind::Uniform);
+        uniforms.extend_from_slice(
+            states::data_loader::get(),
+            &[Uniforms {
+                output_height: 1.0,
+                output_width: 1.0,
+                render_height: 1.0,
+                render_width: 1.0,
+            }],
+        );
 
         FrameBlitter {
             sampler,
@@ -82,16 +121,21 @@ impl FrameBlitter {
                     }),
                 ),
             ),
+            uniforms,
             bind_group_layout,
             device,
         }
     }
 
     pub fn present(
-        &self,
+        &mut self,
         frame: &Frame,
         output_surface: &wgpu::SurfaceTexture,
         queue: &wgpu::Queue,
+        output_width: u32,
+        output_height: u32,
+        render_width: u32,
+        render_height: u32,
     ) {
         let mut cmd = self
             .device
@@ -113,6 +157,17 @@ impl FrameBlitter {
             })],
             ..Default::default()
         });
+
+        self.uniforms.set(
+            0,
+            states::data_loader::get(),
+            &Uniforms {
+                output_width: output_width as f32,
+                output_height: output_height as f32,
+                render_width: render_width as f32,
+                render_height: render_height as f32,
+            },
+        );
 
         render_pass.set_bind_group(0, &frame.bind_group, &[]);
         self.pipeline.render(
@@ -153,6 +208,11 @@ impl FrameBlitter {
                     wgpu::BindGroupEntry {
                         binding: 1,
                         resource: wgpu::BindingResource::TextureView(&texture_view),
+                    },
+                    // Uniforms
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: self.uniforms.as_binding(),
                     },
                 ],
             }),

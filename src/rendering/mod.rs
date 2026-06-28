@@ -301,9 +301,17 @@ impl RenderPermit<'_> {
         // performing necessary colorspace mappings
         self.renderer
             .frame_blitter
-            .get()
+            .get_mut()
             .expect("ColorSpaceTranslator must have been initialized")
-            .present(frame, &output_surface, &self.renderer.queue);
+            .present(
+                frame,
+                &output_surface,
+                &self.renderer.queue,
+                self.renderer.output_size.0.get(),
+                self.renderer.output_size.1.get(),
+                self.renderer.render_size.0.get(),
+                self.renderer.render_size.1.get(),
+            );
 
         // Now surface contains the rendered surface
         output_surface.present();

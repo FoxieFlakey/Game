@@ -135,6 +135,7 @@ async fn init() -> anyhow::Result<Resources> {
             .window("Game UwU", 1280, 720)
             .vulkan()
             .position_centered()
+            .resizable()
             .hidden(),
     )
     .context("Creating main game window")?;
@@ -154,8 +155,8 @@ async fn init() -> anyhow::Result<Resources> {
     let mut renderer = Renderer::new(
         gpu,
         render_format,
-        NonZero::new(100).unwrap(),
-        NonZero::new(200).unwrap(),
+        NonZero::new(500).unwrap(),
+        NonZero::new(500).unwrap(),
     )
     .await
     .context("Initializing renderer")?;
@@ -415,6 +416,30 @@ fn handle_input(
                     continue;
                 }
                 *do_quit = true;
+            }
+
+            // Handle resizing
+            sdl3::event::Event::Window {
+                window_id,
+                win_event: sdl3::event::WindowEvent::Resized(width, height),
+                ..
+            } => {
+                if window_id != main_window_id {
+                    continue;
+                }
+
+                if width < 0 || height < 0 {
+                    // Do not know what to do
+                    warn!("SDL3 window resizing event returns negative width & height");
+                    continue;
+                }
+
+                let width = NonZero::new(width as u32).unwrap_or(NonZero::new(10).unwrap());
+                let height = NonZero::new(height as u32).unwrap_or(NonZero::new(10).unwrap());
+                resources
+                    .renderer_resource
+                    .get_mut()
+                    .set_output_size((width, height));
             }
 
             _ => {
