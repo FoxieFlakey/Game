@@ -7,7 +7,7 @@ use crate::{
         pipeline::{Pipeline, VertexBufs, vertex_buffer_layout},
         util,
     },
-    util::static_gpu_buffer,
+    util::vec_buf,
 };
 
 pub struct Frame {
@@ -24,6 +24,9 @@ pub struct FrameBlitter {
     device: wgpu::Device,
     uniforms: VecBuf<Uniforms>,
     data_loader: DataLoader,
+
+    render_output_model: VecBuf<Vertex>,
+    render_output_model_indexes: VecBuf<u16>,
 }
 
 #[repr(C)]
@@ -40,6 +43,7 @@ struct Uniforms {
     render_height: f32,
 }
 
+#[rustfmt::skip]
 impl FrameBlitter {
     pub fn new(
         device: wgpu::Device,
@@ -123,6 +127,30 @@ impl FrameBlitter {
                     }),
                 ),
             ),
+            render_output_model: vec_buf!(
+                device.clone(),
+                &data_loader,
+                Vertex,
+                [
+                   // Bottom left
+                    Vertex { coord: Vec3 { x: -1.0, y: -1.0, z: 0.0 }, tex_coord: Vec2 { x: 0.0, y: 1.0 } },
+                    // Bottom right
+                    Vertex { coord: Vec3 { x:  1.0, y: -1.0, z: 0.0 }, tex_coord: Vec2 { x: 1.0, y: 1.0 } },
+                    // Top right
+                    Vertex { coord: Vec3 { x:  1.0, y:  1.0, z: 0.0 }, tex_coord: Vec2 { x: 1.0, y: 0.0 } },
+                    // Top left
+                    Vertex { coord: Vec3 { x: -1.0, y:  1.0, z: 0.0 }, tex_coord: Vec2 { x: 0.0, y: 0.0 } },
+                ]
+            ),
+            render_output_model_indexes: vec_buf!(
+                device.clone(),
+                &data_loader,
+                Index,
+                [
+                    0, 1, 3,
+                    3, 1, 2
+                ]
+            ),
             uniforms,
             bind_group_layout,
             device,
@@ -176,12 +204,12 @@ impl FrameBlitter {
         self.pipeline.render(
             &mut render_pass,
             &VertexBufs {
-                buf0: Some(&VERTEX_BUFFER),
+                buf0: Some(&self.render_output_model),
                 ..Default::default()
             },
-            &INDEX_BUFFER,
+            &self.render_output_model_indexes,
             0,
-            0..INDEX_BUFFER.len() as u32,
+            0..self.render_output_model_indexes.len() as u32,
             0..1,
             &[],
         );
@@ -235,21 +263,3 @@ vertex_buffer_layout!(Vertex as Vertex => [
     0 => Float32x3,
     1 => Float32x2
 ]);
-
-static_gpu_buffer!(
-    static Vertex VERTEX_BUFFER: LazyLock<VecBuf<[Vertex]>> => [
-        // Bottom left
-        Vertex { coord: Vec3 { x: -1.0, y: -1.0, z: 0.0 }, tex_coord: Vec2 { x: 0.0, y: 1.0 } },
-        // Bottom right
-        Vertex { coord: Vec3 { x:  1.0, y: -1.0, z: 0.0 }, tex_coord: Vec2 { x: 1.0, y: 1.0 } },
-        // Top right
-        Vertex { coord: Vec3 { x:  1.0, y:  1.0, z: 0.0 }, tex_coord: Vec2 { x: 1.0, y: 0.0 } },
-        // Top left
-        Vertex { coord: Vec3 { x: -1.0, y:  1.0, z: 0.0 }, tex_coord: Vec2 { x: 0.0, y: 0.0 } },
-    ];
-
-    static Index INDEX_BUFFER: LazyLock<VecBuf<[u16]>> => [
-        0, 1, 3,
-        3, 1, 2
-    ];
-);
