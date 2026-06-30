@@ -75,12 +75,6 @@ pub struct RectangleBuilder {
 impl_const_default!(RectangleBuilder, RectangleBuilder {
     color: Vec4::ZERO,
     style: taffy_style! {
-        padding: taffy::Rect {
-            left: taffy::LengthPercentage::length(10.0),
-            right: taffy::LengthPercentage::length(10.0),
-            top: taffy::LengthPercentage::length(10.0),
-            bottom: taffy::LengthPercentage::length(10.0),
-        },
         size: taffy::Size {
             width: taffy::Dimension::percent(1.0),
             height: taffy::Dimension::percent(1.0),

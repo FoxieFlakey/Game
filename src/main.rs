@@ -18,11 +18,7 @@ use futures::{FutureExt, future::OptionFuture, poll};
 use glam::Vec4;
 
 use crate::{
-    local_resource::LocalResource,
-    rendering::Renderer,
-    screen::{Screen, screen_stack::ScreenStack},
-    ui::UI,
-    window::Window,
+    local_resource::LocalResource, rendering::Renderer, screen::{Screen, screen_stack::ScreenStack}, ui::UI, util::ConstDefault, window::Window
 };
 
 mod events;
@@ -240,10 +236,18 @@ async fn late_init() -> anyhow::Result<impl FnOnce(&mut Resources) -> anyhow::Re
                         children: &[
                             &ui::component::RectangleBuilder {
                                 color: Vec4::new(0.5, 0.0, 0.0, 1.0),
+                                style: taffy::Style {
+                                    padding: taffy::Rect::length(10.0f32),
+                                    ..ui::component::RectangleBuilder::DEFAULT.style
+                                },
                                 ..Default::default()
                             },
                             &ui::component::RectangleBuilder {
                                 color: Vec4::new(0.0, 0.0, 0.5, 1.0),
+                                style: taffy::Style {
+                                    padding: taffy::Rect::length(0.0f32),
+                                    ..ui::component::RectangleBuilder::DEFAULT.style
+                                },
                                 ..Default::default()
                             }
                         ],
@@ -253,10 +257,18 @@ async fn late_init() -> anyhow::Result<impl FnOnce(&mut Resources) -> anyhow::Re
                         children: &[
                             &ui::component::RectangleBuilder {
                                 color: Vec4::new(0.0, 0.5, 0.0, 1.0),
+                                style: taffy::Style {
+                                    padding: taffy::Rect::length(5.0f32),
+                                    ..ui::component::RectangleBuilder::DEFAULT.style
+                                },
                                 ..Default::default()
                             },
                             &ui::component::RectangleBuilder {
                                 color: Vec4::new(0.5, 0.5, 0.0, 1.0),
+                                style: taffy::Style {
+                                    padding: taffy::Rect::length(50.0f32),
+                                    ..ui::component::RectangleBuilder::DEFAULT.style
+                                },
                                 ..Default::default()
                             }
                         ],
