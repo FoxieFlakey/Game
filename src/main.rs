@@ -3,6 +3,7 @@
 #![feature(min_specialization)]
 #![feature(range_bounds_is_empty)]
 #![feature(oneshot_channel)]
+#![feature(const_trait_impl)]
 
 use std::{
     ffi::CStr,
@@ -238,24 +239,31 @@ async fn late_init() -> anyhow::Result<impl FnOnce(&mut Resources) -> anyhow::Re
                     &ui::component::ColumnBuilder {
                         children: &[
                             &ui::component::RectangleBuilder {
-                                color: Vec4::new(0.5, 0.0, 0.0, 1.0)
+                                color: Vec4::new(0.5, 0.0, 0.0, 1.0),
+                                ..Default::default()
                             },
                             &ui::component::RectangleBuilder {
-                                color: Vec4::new(0.0, 0.0, 0.5, 1.0)
+                                color: Vec4::new(0.0, 0.0, 0.5, 1.0),
+                                ..Default::default()
                             }
-                        ]
+                        ],
+                        ..Default::default()
                     },
                     &ui::component::ColumnBuilder {
                         children: &[
                             &ui::component::RectangleBuilder {
-                                color: Vec4::new(0.0, 0.5, 0.0, 1.0)
+                                color: Vec4::new(0.0, 0.5, 0.0, 1.0),
+                                ..Default::default()
                             },
                             &ui::component::RectangleBuilder {
-                                color: Vec4::new(0.5, 0.5, 0.0, 1.0)
+                                color: Vec4::new(0.5, 0.5, 0.0, 1.0),
+                                ..Default::default()
                             }
-                        ]
+                        ],
+                        ..Default::default()
                     },
-                ]
+                ],
+                ..Default::default()
             },
         );
 

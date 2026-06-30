@@ -3,9 +3,9 @@ use glam::{Mat4, Vec3, Vec4};
 use crate::{
     events::{self, EventHandleResult},
     ui::{
-        component::{ComponentTrait, ComponentBuilder},
+        component::{ComponentBuilder, ComponentTrait},
         primitives::{self, UIPrimitive},
-    },
+    }, util::{impl_const_default, taffy_style},
 };
 
 pub struct Rectangle {
@@ -67,29 +67,29 @@ impl ComponentTrait for Rectangle {
     }
 }
 
-#[derive(Default)]
 pub struct RectangleBuilder {
-    pub color: Vec4
+    pub color: Vec4,
+    pub style: taffy::Style
 }
+
+impl_const_default!(RectangleBuilder, RectangleBuilder {
+    color: Vec4::ZERO,
+    style: taffy_style! {
+        padding: taffy::Rect {
+            left: taffy::LengthPercentage::length(10.0),
+            right: taffy::LengthPercentage::length(10.0),
+            top: taffy::LengthPercentage::length(10.0),
+            bottom: taffy::LengthPercentage::length(10.0),
+        },
+        size: taffy::Size {
+            width: taffy::Dimension::percent(1.0),
+            height: taffy::Dimension::percent(1.0),
+        },
+    }
+});
 
 impl<'a> ComponentBuilder<'a> for RectangleBuilder {
     fn build(&self) -> (Box<dyn ComponentTrait>, taffy::Style, &'a [&'a dyn ComponentBuilder<'a>]) {
-        (
-            Box::new(Rectangle { color: self.color }),
-            taffy::Style {
-                padding: taffy::Rect {
-                    left: taffy::LengthPercentage::length(10.0),
-                    right: taffy::LengthPercentage::length(10.0),
-                    top: taffy::LengthPercentage::length(10.0),
-                    bottom: taffy::LengthPercentage::length(10.0),
-                },
-                size: taffy::Size {
-                    width: taffy::Dimension::percent(1.0),
-                    height: taffy::Dimension::percent(1.0),
-                },
-                ..Default::default()
-            },
-            &[]
-        )
+        (Box::new(Rectangle { color: self.color }), self.style.clone(), &[])
     }
 }

@@ -55,3 +55,55 @@ macro_rules! vec_buf2 {
     }};
 }
 pub(crate) use vec_buf2;
+
+// NOTE this does not make the T implements Default
+pub const trait ConstDefault: Sized {
+    const DEFAULT: Self;
+    
+    fn const_default() -> Self {
+        Self::DEFAULT
+    }
+}
+
+macro_rules! impl_const_default {
+    ($type:ty, $default:expr) => {
+        impl $crate::util::ConstDefault for $type {
+            const DEFAULT: Self = $default;
+        }
+        
+        impl std::default::Default for $type {
+            fn default() -> Self {
+                <Self as $crate::util::ConstDefault>::const_default()
+            }
+        }
+    };
+}
+pub(crate) use impl_const_default;
+
+/// Example, its like
+/// 
+/// taffy::Style {
+///   ..Default::default()
+/// }
+/// 
+/// But works in const context, it cause some error..
+/// 
+/// # Example
+/// ```rust
+/// taffy_style! {
+///     size: taffy::Size {
+///         width: taffy::Dimension::percent(1.0),
+///         height: taffy::Dimension::percent(1.0)
+///     },
+///     // The rest is using taffy::Style::DEFAULT values
+/// }
+/// ```
+macro_rules! taffy_style {
+    ($($field:ident : $val:expr),* $(,)?) => {{
+        let mut s = taffy::Style::DEFAULT;
+        $( s.$field = $val; )*
+        s
+    }};
+}
+pub(crate) use taffy_style;
+
