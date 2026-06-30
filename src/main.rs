@@ -9,6 +9,7 @@ use std::{
     ffi::CStr,
     num::NonZero,
     pin::Pin,
+    rc::Rc,
     task::Poll,
     time::{Duration, Instant},
 };
@@ -18,7 +19,12 @@ use futures::{FutureExt, future::OptionFuture, poll};
 use glam::Vec4;
 
 use crate::{
-    local_resource::LocalResource, rendering::Renderer, screen::{Screen, screen_stack::ScreenStack}, ui::UI, util::ConstDefault, window::Window
+    local_resource::LocalResource,
+    rendering::Renderer,
+    screen::{Screen, screen_stack::ScreenStack},
+    ui::UI,
+    util::ConstDefault,
+    window::Window,
 };
 
 mod events;
@@ -227,57 +233,39 @@ async fn late_init() -> anyhow::Result<impl FnOnce(&mut Resources) -> anyhow::Re
 
         stack.pop_screen();
         let renderer = resources.renderer_resource.get();
-        let ui = UI::new(
-            renderer.get_render_size().0.get() as f32,
-            renderer.get_render_size().1.get() as f32,
-            &ui::component::RowBuilder {
-                children: &[
-                    &ui::component::ColumnBuilder {
-                        children: &[
-                            &ui::component::RectangleBuilder {
-                                color: Vec4::new(0.5, 0.0, 0.0, 1.0),
-                                style: taffy::Style {
-                                    padding: taffy::Rect::length(10.0f32),
-                                    ..ui::component::RectangleBuilder::DEFAULT.style
-                                },
-                                ..Default::default()
+
+        #[rustfmt::skip]
+        fn build_ui(renderer: &Renderer) -> UI {
+            UI::new(
+                renderer.get_render_size().0.get() as f32,
+                renderer.get_render_size().1.get() as f32,
+                &ui::component::RowBuilder {
+                    children: &[
+                        &ui::component::RectangleBuilder {
+                            color: Vec4::new(0.5, 0.0, 0.0, 1.0),
+                            ..Default::default()
+                        },
+                        &ui::component::ButtonBuilder {
+                            style: taffy::Style {
+                                margin: taffy::Rect::length(11.0f32),
+                                ..ui::component::ButtonBuilder::DEFAULT.style
                             },
-                            &ui::component::RectangleBuilder {
-                                color: Vec4::new(0.0, 0.0, 0.5, 1.0),
-                                style: taffy::Style {
-                                    padding: taffy::Rect::length(0.0f32),
-                                    ..ui::component::RectangleBuilder::DEFAULT.style
-                                },
-                                ..Default::default()
-                            }
-                        ],
-                        ..Default::default()
-                    },
-                    &ui::component::ColumnBuilder {
-                        children: &[
-                            &ui::component::RectangleBuilder {
-                                color: Vec4::new(0.0, 0.5, 0.0, 1.0),
-                                style: taffy::Style {
-                                    padding: taffy::Rect::length(5.0f32),
-                                    ..ui::component::RectangleBuilder::DEFAULT.style
-                                },
-                                ..Default::default()
-                            },
-                            &ui::component::RectangleBuilder {
-                                color: Vec4::new(0.5, 0.5, 0.0, 1.0),
-                                style: taffy::Style {
-                                    padding: taffy::Rect::length(50.0f32),
-                                    ..ui::component::RectangleBuilder::DEFAULT.style
-                                },
-                                ..Default::default()
-                            }
-                        ],
-                        ..Default::default()
-                    },
-                ],
-                ..Default::default()
-            },
-        );
+                            children: &[
+                                &ui::component::RectangleBuilder {
+                                    color: Vec4::new(0.97, 0.63, 0.28, 1.0),
+                                    ..Default::default()
+                                }
+                            ],
+                            on_click: Some(Rc::new(|| info!("Clicked!!"))),
+                            ..Default::default()
+                        },
+                    ],
+                    ..Default::default()
+                },
+            )
+        }
+
+        let ui = build_ui(&renderer);
 
         stack.push_screen(ui);
 

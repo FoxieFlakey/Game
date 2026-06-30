@@ -59,7 +59,7 @@ pub(crate) use vec_buf2;
 // NOTE this does not make the T implements Default
 pub const trait ConstDefault: Sized {
     const DEFAULT: Self;
-    
+
     fn const_default() -> Self {
         Self::DEFAULT
     }
@@ -70,7 +70,7 @@ macro_rules! impl_const_default {
         impl $crate::util::ConstDefault for $type {
             const DEFAULT: Self = $default;
         }
-        
+
         impl std::default::Default for $type {
             fn default() -> Self {
                 <Self as $crate::util::ConstDefault>::const_default()
@@ -81,13 +81,13 @@ macro_rules! impl_const_default {
 pub(crate) use impl_const_default;
 
 /// Example, its like
-/// 
+///
 /// taffy::Style {
 ///   ..Default::default()
 /// }
-/// 
+///
 /// But works in const context, it cause some error..
-/// 
+///
 /// # Example
 /// ```rust
 /// taffy_style! {
@@ -106,4 +106,3 @@ macro_rules! taffy_style {
     }};
 }
 pub(crate) use taffy_style;
-

@@ -18,13 +18,23 @@ mod column;
 pub use column::Column;
 pub use column::ColumnBuilder;
 
+mod button;
+pub use button::Button;
+pub use button::ButtonBuilder;
+
 pub trait ComponentBuilder<'a> {
     // returns the built component
     // and the component's styling
     // and the children builders
     //
     // Callin again would give same values
-    fn build(&self) -> (Box<dyn ComponentTrait>, taffy::Style, &'a [&'a dyn ComponentBuilder<'a>]);
+    fn build(
+        &self,
+    ) -> (
+        Box<dyn ComponentTrait>,
+        taffy::Style,
+        &'a [&'a dyn ComponentBuilder<'a>],
+    );
 }
 
 pub trait ComponentTrait {
@@ -82,7 +92,7 @@ pub trait ComponentTrait {
         let _ = height;
         let _ = delta_time;
         let _ = event;
-        
+
         events::EventHandleResult::Pass
     }
 }
@@ -91,7 +101,7 @@ pub trait ComponentTrait {
 // (it still mostly passthru methods to underlying one)
 pub struct Component {
     pub(super) node_id: taffy::NodeId,
-    pub(super) component: Box<dyn ComponentTrait>
+    pub(super) component: Box<dyn ComponentTrait>,
 }
 
 impl Component {
@@ -110,9 +120,8 @@ impl DerefMut for Component {
 
 impl Deref for Component {
     type Target = dyn ComponentTrait;
-    
+
     fn deref(&self) -> &Self::Target {
         &*self.component
     }
 }
-

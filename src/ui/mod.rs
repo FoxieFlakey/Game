@@ -9,7 +9,10 @@ use crate::{
     rendering::buffer::{BufferKind, VecBuf},
     screen::Screen,
     states,
-    ui::{component::{Component, ComponentBuilder, ComponentTrait}, primitives::UIPrimitive},
+    ui::{
+        component::{Component, ComponentBuilder, ComponentTrait},
+        primitives::UIPrimitive,
+    },
     util::vec_buf2,
 };
 
@@ -63,14 +66,17 @@ impl UI {
                 projection_matrix: Mat4::IDENTITY
             }]
         );
-        
+
         let mut this = Self {
             screen_width,
             screen_height,
             // Fake placeholder leaf, going to be replaced after Self is constructed
             root_id: taffy.new_leaf(taffy::Style::DEFAULT).unwrap(),
             taffy,
-            colored_rects: Some(VecBuf::new(states::main_dev::get().clone(), BufferKind::Vertex)),
+            colored_rects: Some(VecBuf::new(
+                states::main_dev::get().clone(),
+                BufferKind::Vertex,
+            )),
             camera_bind_group: states::main_dev::get().create_bind_group(
                 &wgpu::BindGroupDescriptor {
                     layout: &CAMERA_BIND_LAYOUT,
@@ -87,7 +93,7 @@ impl UI {
         let new_root = this.build_component(root_builder);
         this.taffy.remove(this.root_id).unwrap();
         this.root_id = new_root;
-        
+
         this.on_resize(screen_width, screen_height);
         this
     }
@@ -98,46 +104,51 @@ impl UI {
 
     fn build_component<'a>(&mut self, builder: &'a dyn ComponentBuilder<'a>) -> taffy::NodeId {
         let (component, style, children) = builder.build();
-        
-        let component_id = self
-            .taffy
-            .new_leaf(style)
-            .unwrap();
-        
-        self.taffy.set_node_context(
+
+        let component_id = self.taffy.new_leaf(style).unwrap();
+
+        self.taffy
+            .set_node_context(
                 component_id,
                 Some(RefCell::new(Component {
                     node_id: component_id,
-                    component
+                    component,
                 })),
             )
             .unwrap();
-        
+
         for child_builder in children {
             let child = self.build_component(*child_builder);
             self.taffy.add_child(component_id, child).unwrap();
         }
-        
+
         component_id
     }
-    
-    pub fn add_child<'a, T: ComponentBuilder<'a> + 'a>(&mut self, parent: taffy::NodeId, builder: &'a T) -> taffy::NodeId {
+
+    pub fn add_child<'a, T: ComponentBuilder<'a> + 'a>(
+        &mut self,
+        parent: taffy::NodeId,
+        builder: &'a T,
+    ) -> taffy::NodeId {
         let child = self.build_component(builder);
         self.taffy.add_child(parent, child).unwrap();
         child
     }
 
-    pub fn add_child_built<T: ComponentTrait + 'static>(&mut self, root: taffy::NodeId, style: taffy::Style, component: T) -> taffy::NodeId {
-        let child = self
-            .taffy
-            .new_leaf(style)
-            .unwrap();
-        
-        self.taffy.set_node_context(
+    pub fn add_child_built<T: ComponentTrait + 'static>(
+        &mut self,
+        root: taffy::NodeId,
+        style: taffy::Style,
+        component: T,
+    ) -> taffy::NodeId {
+        let child = self.taffy.new_leaf(style).unwrap();
+
+        self.taffy
+            .set_node_context(
                 child,
                 Some(RefCell::new(Component {
                     node_id: child,
-                    component: Box::new(component)
+                    component: Box::new(component),
                 })),
             )
             .unwrap();
@@ -165,12 +176,12 @@ impl UI {
         let root = self.taffy.get_node_context(self.root_id).unwrap();
 
         let parent_transform_matrix = Mat4::from_translation(Vec3::new(
-                root_layout.content_box_x(),
-                // Gemini AI slop generated to uhh do whatever to translate
-                // Taffy's 0,0 on top to WGPU's 0,0 at bottom left
-                self.screen_height - root_layout.content_box_y() - root_layout.content_box_height(),
-                0.0,
-            ));
+            root_layout.content_box_x(),
+            // Gemini AI slop generated to uhh do whatever to translate
+            // Taffy's 0,0 on top to WGPU's 0,0 at bottom left
+            self.screen_height - root_layout.content_box_y() - root_layout.content_box_height(),
+            0.0,
+        ));
         let do_ret = consumer(
             parent_transform_matrix,
             root_layout.content_box_width(),
@@ -207,9 +218,7 @@ impl UI {
                     layout.content_box_x(),
                     // Gemini AI slop generated to uhh do whatever to translate
                     // Taffy's 0,0 on top to WGPU's 0,0 at bottom left
-                    top.parent_height
-                        - layout.content_box_height()
-                        - layout.content_box_y(),
+                    top.parent_height - layout.content_box_height() - layout.content_box_y(),
                     1.0,
                 ));
 
@@ -319,20 +328,18 @@ impl Screen for UI {
         // PHASE 1: Traverse entire tree and collect all ui primitives
         let mut colored_rects = self.colored_rects.take().unwrap();
         colored_rects.clear();
-        
+
         let data_loader = states::data_loader::get();
-        let mut pusher = |x| {
-            match x {
-                UIPrimitive::ColoredRectangle(x) => colored_rects.push(data_loader, x)
-            }
+        let mut pusher = |x| match x {
+            UIPrimitive::ColoredRectangle(x) => colored_rects.push(data_loader, x),
         };
-        
+
         self.iter_tree(|transform, width, height, node| {
             node.borrow_mut()
                 .render(transform, width, height, delta_time, &mut pusher);
             false
         });
-        
+
         self.colored_rects = Some(colored_rects);
 
         // Phase 3: Render all primitives

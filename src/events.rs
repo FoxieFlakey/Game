@@ -5,6 +5,7 @@ pub enum EventHandleResult {
     Pass,
 }
 
+#[non_exhaustive]
 #[derive(Clone)]
 pub enum Event {
     MouseDown {
