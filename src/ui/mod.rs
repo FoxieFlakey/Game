@@ -97,11 +97,11 @@ impl UI {
     }
 
     fn build_component<'a>(&mut self, builder: &'a dyn ComponentBuilder<'a>) -> taffy::NodeId {
-        let (component, children) = builder.build();
+        let (component, style, children) = builder.build();
         
         let component_id = self
             .taffy
-            .new_leaf(component.get_base_style())
+            .new_leaf(style)
             .unwrap();
         
         self.taffy.set_node_context(
@@ -127,10 +127,10 @@ impl UI {
         child
     }
 
-    pub fn add_child_built<T: ComponentTrait + 'static>(&mut self, root: taffy::NodeId, component: T) -> taffy::NodeId {
+    pub fn add_child_built<T: ComponentTrait + 'static>(&mut self, root: taffy::NodeId, style: taffy::Style, component: T) -> taffy::NodeId {
         let child = self
             .taffy
-            .new_leaf(component.get_base_style())
+            .new_leaf(style)
             .unwrap();
         
         self.taffy.set_node_context(

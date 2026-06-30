@@ -50,22 +50,6 @@ impl ComponentTrait for Rectangle {
         EventHandleResult::Pass
     }
 
-    fn get_base_style(&self) -> taffy::Style {
-        taffy::Style {
-            padding: taffy::Rect {
-                left: taffy::LengthPercentage::length(10.0),
-                right: taffy::LengthPercentage::length(10.0),
-                top: taffy::LengthPercentage::length(10.0),
-                bottom: taffy::LengthPercentage::length(10.0),
-            },
-            size: taffy::Size {
-                width: taffy::Dimension::percent(1.0),
-                height: taffy::Dimension::percent(1.0),
-            },
-            ..Default::default()
-        }
-    }
-
     fn render(
         &mut self,
         transform_matrix: glam::Mat4,
@@ -89,7 +73,23 @@ pub struct RectangleBuilder {
 }
 
 impl<'a> ComponentBuilder<'a> for RectangleBuilder {
-    fn build(&self) -> (Box<dyn ComponentTrait>, &'a [&'a dyn ComponentBuilder<'a>]) {
-        (Box::new(Rectangle { color: self.color }), &[])
+    fn build(&self) -> (Box<dyn ComponentTrait>, taffy::Style, &'a [&'a dyn ComponentBuilder<'a>]) {
+        (
+            Box::new(Rectangle { color: self.color }),
+            taffy::Style {
+                padding: taffy::Rect {
+                    left: taffy::LengthPercentage::length(10.0),
+                    right: taffy::LengthPercentage::length(10.0),
+                    top: taffy::LengthPercentage::length(10.0),
+                    bottom: taffy::LengthPercentage::length(10.0),
+                },
+                size: taffy::Size {
+                    width: taffy::Dimension::percent(1.0),
+                    height: taffy::Dimension::percent(1.0),
+                },
+                ..Default::default()
+            },
+            &[]
+        )
     }
 }

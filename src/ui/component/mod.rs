@@ -20,19 +20,14 @@ pub use column::ColumnBuilder;
 
 pub trait ComponentBuilder<'a> {
     // returns the built component
+    // and the component's styling
     // and the children builders
     //
     // Callin again would give same values
-    fn build(&self) -> (Box<dyn ComponentTrait>, &'a [&'a dyn ComponentBuilder<'a>]);
+    fn build(&self) -> (Box<dyn ComponentTrait>, taffy::Style, &'a [&'a dyn ComponentBuilder<'a>]);
 }
 
 pub trait ComponentTrait {
-    // To user, min and max size of a component
-    // MUST not be modified to be less restrictive
-    // like decreasing min and increasing max. Or
-    // removing min/max limit
-    fn get_base_style(&self) -> taffy::Style;
-
     // Transform matrix is matrix saying how
     // current component is transformed
     //
