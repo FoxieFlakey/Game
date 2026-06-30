@@ -1,8 +1,8 @@
-use crate::ui::component::{Component, ComponentBuilder};
+use crate::ui::component::{ComponentTrait, ComponentBuilder};
 
 pub struct Row;
 
-impl Component for Row {
+impl ComponentTrait for Row {
     fn get_base_style(&self) -> taffy::Style {
         taffy::Style {
             display: taffy::Display::Flex,
@@ -24,7 +24,7 @@ pub struct RowBuilder<'a> {
 }
 
 impl<'a> ComponentBuilder<'a> for RowBuilder<'a> {
-    fn build(&self) -> (Box<dyn Component>, &'a [&'a dyn ComponentBuilder<'a>]) {
+    fn build(&self) -> (Box<dyn ComponentTrait>, &'a [&'a dyn ComponentBuilder<'a>]) {
         (Box::new(Row), self.children)
     }
 }

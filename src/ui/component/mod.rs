@@ -1,3 +1,5 @@
+use std::ops::Deref;
+use std::ops::DerefMut;
 use std::time::Duration;
 
 use glam::Mat4;
@@ -21,10 +23,10 @@ pub trait ComponentBuilder<'a> {
     // and the children builders
     //
     // Callin again would give same values
-    fn build(&self) -> (Box<dyn Component>, &'a [&'a dyn ComponentBuilder<'a>]);
+    fn build(&self) -> (Box<dyn ComponentTrait>, &'a [&'a dyn ComponentBuilder<'a>]);
 }
 
-pub trait Component {
+pub trait ComponentTrait {
     // To user, min and max size of a component
     // MUST not be modified to be less restrictive
     // like decreasing min and increasing max. Or
@@ -89,3 +91,33 @@ pub trait Component {
         events::EventHandleResult::Pass
     }
 }
+
+// A concrete container for component
+// (it still mostly passthru methods to underlying one)
+pub struct Component {
+    pub(super) node_id: taffy::NodeId,
+    pub(super) component: Box<dyn ComponentTrait>
+}
+
+impl Component {
+    // Return Taffy's NodeID that refer to this
+    // component
+    pub fn get_node_id(&self) -> taffy::NodeId {
+        self.node_id
+    }
+}
+
+impl DerefMut for Component {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut *self.component
+    }
+}
+
+impl Deref for Component {
+    type Target = dyn ComponentTrait;
+    
+    fn deref(&self) -> &Self::Target {
+        &*self.component
+    }
+}
+

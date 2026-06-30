@@ -3,7 +3,7 @@ use glam::{Mat4, Vec3, Vec4};
 use crate::{
     events::{self, EventHandleResult},
     ui::{
-        component::{Component, ComponentBuilder},
+        component::{ComponentTrait, ComponentBuilder},
         primitives::{self, UIPrimitive},
     },
 };
@@ -12,7 +12,7 @@ pub struct Rectangle {
     color: Vec4
 }
 
-impl Component for Rectangle {
+impl ComponentTrait for Rectangle {
     fn handle_event(
         &mut self,
         _transform_matrix: glam::Mat4,
@@ -89,7 +89,7 @@ pub struct RectangleBuilder {
 }
 
 impl<'a> ComponentBuilder<'a> for RectangleBuilder {
-    fn build(&self) -> (Box<dyn Component>, &'a [&'a dyn ComponentBuilder<'a>]) {
+    fn build(&self) -> (Box<dyn ComponentTrait>, &'a [&'a dyn ComponentBuilder<'a>]) {
         (Box::new(Rectangle { color: self.color }), &[])
     }
 }

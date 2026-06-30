@@ -9,7 +9,7 @@ use crate::{
     rendering::buffer::{BufferKind, VecBuf},
     screen::Screen,
     states,
-    ui::{component::{Component, ComponentBuilder}, primitives::UIPrimitive},
+    ui::{component::{Component, ComponentBuilder, ComponentTrait}, primitives::UIPrimitive},
     util::vec_buf2,
 };
 
@@ -21,7 +21,7 @@ pub struct UI {
     screen_height: f32,
     camera_bind_group: wgpu::BindGroup,
     camera: VecBuf<Camera>,
-    taffy: taffy::TaffyTree<RefCell<Box<dyn Component>>>,
+    taffy: taffy::TaffyTree<RefCell<Component>>,
     root_id: taffy::NodeId,
     projection_matrix: Mat4,
     colored_rects: Option<VecBuf<primitives::ColoredRectangle>>,
@@ -55,7 +55,7 @@ impl UI {
         screen_height: f32,
         root_builder: &'a T,
     ) -> Self {
-        let mut taffy: taffy::TaffyTree<RefCell<Box<dyn Component>>> = taffy::TaffyTree::new();
+        let mut taffy = taffy::TaffyTree::new();
 
         let camera = vec_buf2!(
             Uniform,
@@ -98,10 +98,20 @@ impl UI {
 
     fn build_component<'a>(&mut self, builder: &'a dyn ComponentBuilder<'a>) -> taffy::NodeId {
         let (component, children) = builder.build();
-        let component_id = self.taffy.new_leaf_with_context(
-            component.get_base_style(),
-            RefCell::new(component)
-        ).unwrap();
+        
+        let component_id = self
+            .taffy
+            .new_leaf(component.get_base_style())
+            .unwrap();
+        
+        self.taffy.set_node_context(
+                component_id,
+                Some(RefCell::new(Component {
+                    node_id: component_id,
+                    component
+                })),
+            )
+            .unwrap();
         
         for child_builder in children {
             let child = self.build_component(*child_builder);
@@ -117,12 +127,18 @@ impl UI {
         child
     }
 
-    pub fn add_child_built<T: Component + 'static>(&mut self, root: taffy::NodeId, component: T) -> taffy::NodeId {
+    pub fn add_child_built<T: ComponentTrait + 'static>(&mut self, root: taffy::NodeId, component: T) -> taffy::NodeId {
         let child = self
             .taffy
-            .new_leaf_with_context(
-                component.get_base_style(),
-                RefCell::new(Box::new(component)),
+            .new_leaf(component.get_base_style())
+            .unwrap();
+        
+        self.taffy.set_node_context(
+                child,
+                Some(RefCell::new(Component {
+                    node_id: child,
+                    component: Box::new(component)
+                })),
             )
             .unwrap();
         self.taffy.add_child(root, child).unwrap();
@@ -136,7 +152,7 @@ impl UI {
             /* Transform matrix */ Mat4,
             /* width */ f32,
             /* height */ f32,
-            /* component */ &RefCell<Box<dyn Component>>,
+            /* component */ &RefCell<Component>,
         ) -> bool,
     {
         struct State<'a> {
