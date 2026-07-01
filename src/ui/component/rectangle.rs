@@ -2,7 +2,7 @@ use glam::{Mat4, Vec3, Vec4};
 
 use crate::{
     ui::{
-        component::{ComponentBuilder, ComponentTrait},
+        component::{Children, ComponentBuilder, ComponentTrait},
         primitives::{self, UIPrimitive},
     },
     util::{impl_const_default, taffy_style},
@@ -49,17 +49,11 @@ impl_const_default!(
 );
 
 impl<'a> ComponentBuilder<'a> for RectangleBuilder {
-    fn build(
-        &self,
-    ) -> (
-        Box<dyn ComponentTrait>,
-        taffy::Style,
-        &'a [&'a dyn ComponentBuilder<'a>],
-    ) {
+    fn build(&self) -> (Box<dyn ComponentTrait>, taffy::Style, Children<'a>) {
         (
             Box::new(Rectangle { color: self.color }),
             self.style.clone(),
-            &[],
+            Children::None,
         )
     }
 }

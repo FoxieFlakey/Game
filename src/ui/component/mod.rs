@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::time::Duration;
@@ -22,19 +23,26 @@ mod button;
 pub use button::Button;
 pub use button::ButtonBuilder;
 
+pub enum Children<'a> {
+    // Borrowed builders
+    Borrowed(&'a [&'a dyn ComponentBuilder<'a>]),
+
+    // Represent built childrens that was eagerly built
+    // there no borrow variants, as these has to be
+    // newly built childs
+    Built(Vec<taffy::NodeId>),
+
+    // There no children
+    None,
+}
+
 pub trait ComponentBuilder<'a> {
     // returns the built component
     // and the component's styling
     // and the children builders
     //
     // Callin again would give same values
-    fn build(
-        &self,
-    ) -> (
-        Box<dyn ComponentTrait>,
-        taffy::Style,
-        &'a [&'a dyn ComponentBuilder<'a>],
-    );
+    fn build(&self) -> (Box<dyn ComponentTrait>, taffy::Style, Children<'a>);
 }
 
 pub trait ComponentTrait {

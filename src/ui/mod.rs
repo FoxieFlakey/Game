@@ -117,9 +117,17 @@ impl UI {
             )
             .unwrap();
 
-        for child_builder in children {
-            let child = self.build_component(*child_builder);
-            self.taffy.add_child(component_id, child).unwrap();
+        match children {
+            component::Children::None => (),
+            component::Children::Borrowed(children) => {
+                for child_builder in children {
+                    let child = self.build_component(*child_builder);
+                    self.taffy.add_child(component_id, child).unwrap();
+                }
+            }
+            component::Children::Built(children) => {
+                self.taffy.set_children(component_id, &children).unwrap();
+            }
         }
 
         component_id
