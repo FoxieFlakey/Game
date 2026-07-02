@@ -52,6 +52,21 @@ static CAMERA_BIND_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::new(|| {
     })
 });
 
+pub struct BuilderContext<'a> {
+    ui: &'a mut UI,
+}
+
+impl BuilderContext<'_> {
+    // If the component builder, would want to build some part of
+    // tree ahead of time and have reference to it via NodeID.
+    pub fn build_component<'a, T: ComponentBuilder<'a>>(
+        &mut self,
+        component_builder: &'a T,
+    ) -> taffy::NodeId {
+        self.ui.build_component(component_builder)
+    }
+}
+
 impl UI {
     pub fn new<'a, T: ComponentBuilder<'a> + 'a>(
         screen_width: f32,
@@ -103,7 +118,8 @@ impl UI {
     }
 
     fn build_component<'a>(&mut self, builder: &'a dyn ComponentBuilder<'a>) -> taffy::NodeId {
-        let (component, style, children) = builder.build();
+        let mut builder_context = BuilderContext { ui: self };
+        let (component, style, children) = builder.build(&mut builder_context);
 
         let component_id = self.taffy.new_leaf(style).unwrap();
 

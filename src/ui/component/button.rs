@@ -1,10 +1,11 @@
 use std::rc::Rc;
 
-use taffy::style_helpers::TaffyAuto;
-
 use crate::{
     events::{Event, EventHandleResult},
-    ui::component::{Children, ComponentBuilder, ComponentTrait},
+    ui::{
+        BuilderContext,
+        component::{Children, ComponentBuilder, ComponentTrait},
+    },
     util::{impl_const_default, taffy_style},
 };
 
@@ -66,7 +67,10 @@ impl_const_default!(
 );
 
 impl<'a> ComponentBuilder<'a> for ButtonBuilder<'a> {
-    fn build(&self) -> (Box<dyn ComponentTrait>, taffy::Style, Children<'a>) {
+    fn build(
+        &self,
+        _context: &mut BuilderContext,
+    ) -> (Box<dyn ComponentTrait>, taffy::Style, Children<'a>) {
         (
             Box::new(Button {
                 on_click: self.on_click.clone(),

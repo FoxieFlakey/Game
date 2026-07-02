@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use glam::Mat4;
 
+use crate::ui::BuilderContext;
 use crate::{events, ui::primitives::UIPrimitive};
 
 mod rectangle;
@@ -42,7 +43,10 @@ pub trait ComponentBuilder<'a> {
     // and the children builders
     //
     // Callin again would give same values
-    fn build(&self) -> (Box<dyn ComponentTrait>, taffy::Style, Children<'a>);
+    fn build(
+        &self,
+        _context: &mut BuilderContext,
+    ) -> (Box<dyn ComponentTrait>, taffy::Style, Children<'a>);
 }
 
 pub trait ComponentTrait {

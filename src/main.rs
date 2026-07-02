@@ -7,6 +7,7 @@
 
 use std::{
     ffi::CStr,
+    marker::PhantomData,
     num::NonZero,
     pin::Pin,
     rc::Rc,
@@ -22,7 +23,7 @@ use crate::{
     local_resource::LocalResource,
     rendering::Renderer,
     screen::{Screen, screen_stack::ScreenStack},
-    ui::UI,
+    ui::{UI, component::ComponentBuilder},
     util::ConstDefault,
     window::Window,
 };
