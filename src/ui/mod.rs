@@ -62,7 +62,7 @@ impl BuilderContext<'_> {
     pub fn build_component<'a, T: ComponentBuilder<'a>>(
         &mut self,
         component_builder: &'a T,
-    ) -> taffy::NodeId {
+    ) -> (taffy::NodeId, Rc<Component>) {
         self.ui.build_component(component_builder)
     }
 }
@@ -105,7 +105,7 @@ impl UI {
             projection_matrix: Mat4::IDENTITY,
             camera,
         };
-        let new_root = this.build_component(root_builder);
+        let (new_root, _) = this.build_component(root_builder);
         this.taffy.remove(this.root_id).unwrap();
         this.root_id = new_root;
 
@@ -117,19 +117,20 @@ impl UI {
         self.root_id
     }
 
-    fn build_component<'a>(&mut self, builder: &'a dyn ComponentBuilder<'a>) -> taffy::NodeId {
+    fn build_component<'a>(&mut self, builder: &'a dyn ComponentBuilder<'a>) -> (taffy::NodeId, Rc<Component>) {
         let mut builder_context = BuilderContext { ui: self };
         let (component, style, children) = builder.build(&mut builder_context);
 
         let component_id = self.taffy.new_leaf(style).unwrap();
+        let component = Rc::new(Component {
+            node_id: component_id,
+            component: RefCell::new(component),
+        });
 
         self.taffy
             .set_node_context(
                 component_id,
-                Some(Rc::new(Component {
-                    node_id: component_id,
-                    component: RefCell::new(component),
-                })),
+                Some(component.clone()),
             )
             .unwrap();
 
@@ -137,7 +138,7 @@ impl UI {
             component::Children::None => (),
             component::Children::Borrowed(children) => {
                 for child_builder in children {
-                    let child = self.build_component(*child_builder);
+                    let (child, _) = self.build_component(*child_builder);
                     self.taffy.add_child(component_id, child).unwrap();
                 }
             }
@@ -146,17 +147,17 @@ impl UI {
             }
         }
 
-        component_id
+        (component_id, component)
     }
 
     pub fn add_child<'a, T: ComponentBuilder<'a> + 'a>(
         &mut self,
         parent: taffy::NodeId,
         builder: &'a T,
-    ) -> taffy::NodeId {
-        let child = self.build_component(builder);
+    ) -> (taffy::NodeId, Rc<Component>) {
+        let (child, component) = self.build_component(builder);
         self.taffy.add_child(parent, child).unwrap();
-        child
+        (child, component)
     }
 
     pub fn add_child_built<T: ComponentTrait + 'static>(

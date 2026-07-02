@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::cell::Cell;
 
 use crate::{
     events::{Event, EventHandleResult},
@@ -10,7 +10,7 @@ use crate::{
 };
 
 pub struct Button {
-    on_click: Option<Rc<dyn Fn()>>,
+    on_click: Box<dyn FnMut()>,
     is_down: bool,
 }
 
@@ -32,9 +32,7 @@ impl ComponentTrait for Button {
 
             Event::MouseUp { x, y, .. } => {
                 if (0.0..width).contains(&x) && (0.0..height).contains(&y) {
-                    if let Some(func) = &self.on_click {
-                        func();
-                    }
+                    (self.on_click)();
                 }
 
                 self.is_down = false;
@@ -48,7 +46,7 @@ impl ComponentTrait for Button {
 
 pub struct ButtonBuilder<'a> {
     pub children: &'a [&'a dyn ComponentBuilder<'a>],
-    pub on_click: Option<Rc<dyn Fn()>>,
+    pub on_click: Cell<Option<Box<dyn FnMut()>>>,
     pub style: taffy::Style,
 }
 
@@ -56,7 +54,7 @@ impl_const_default!(
     ButtonBuilder<'_>,
     Self {
         children: &[],
-        on_click: None,
+        on_click: Cell::new(None),
         style: taffy_style! {
             size: taffy::Size {
                 width: taffy::Dimension::length(100.0),
@@ -73,7 +71,7 @@ impl<'a> ComponentBuilder<'a> for ButtonBuilder<'a> {
     ) -> (Box<dyn ComponentTrait>, taffy::Style, Children<'a>) {
         (
             Box::new(Button {
-                on_click: self.on_click.clone(),
+                on_click: self.on_click.take().expect("On click function is gone! NOTE that ButtonBuilder is not idempotent"),
                 is_down: false,
             }),
             self.style.clone(),

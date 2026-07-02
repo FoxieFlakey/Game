@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::cell::Ref;
 use std::cell::RefCell;
 use std::cell::RefMut;
@@ -24,6 +25,9 @@ mod button;
 pub use button::Button;
 pub use button::ButtonBuilder;
 
+mod fn_builder;
+pub use fn_builder::FnBuilder;
+
 pub enum Children<'a> {
     // Borrowed builders
     Borrowed(&'a [&'a dyn ComponentBuilder<'a>]),
@@ -49,7 +53,7 @@ pub trait ComponentBuilder<'a> {
     ) -> (Box<dyn ComponentTrait>, taffy::Style, Children<'a>);
 }
 
-pub trait ComponentTrait {
+pub trait ComponentTrait: Any {
     // Transform matrix is matrix saying how
     // current component is transformed
     //

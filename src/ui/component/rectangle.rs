@@ -10,7 +10,7 @@ use crate::{
 };
 
 pub struct Rectangle {
-    color: Vec4,
+    pub color: Vec4,
 }
 
 impl ComponentTrait for Rectangle {

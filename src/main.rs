@@ -6,13 +6,7 @@
 #![feature(const_trait_impl)]
 
 use std::{
-    ffi::CStr,
-    marker::PhantomData,
-    num::NonZero,
-    pin::Pin,
-    rc::Rc,
-    task::Poll,
-    time::{Duration, Instant},
+    any::Any, cell::Cell, ffi::CStr, marker::PhantomData, mem, num::NonZero, pin::Pin, task::Poll, time::{Duration, Instant}
 };
 
 use anyhow::Context;
@@ -23,7 +17,7 @@ use crate::{
     local_resource::LocalResource,
     rendering::Renderer,
     screen::{Screen, screen_stack::ScreenStack},
-    ui::{UI, component::ComponentBuilder},
+    ui::{UI, component::{Children, ComponentBuilder}},
     util::ConstDefault,
     window::Window,
 };
@@ -246,19 +240,34 @@ async fn late_init() -> anyhow::Result<impl FnOnce(&mut Resources) -> anyhow::Re
                             color: Vec4::new(0.5, 0.0, 0.0, 1.0),
                             ..Default::default()
                         },
-                        &ui::component::ButtonBuilder {
-                            style: taffy::Style {
-                                margin: taffy::Rect::length(11.0f32),
-                                ..ui::component::ButtonBuilder::DEFAULT.style
-                            },
-                            children: &[
-                                &ui::component::RectangleBuilder {
+                        &ui::component::FnBuilder {
+                            func: |context: &mut ui::BuilderContext<'_>| {
+                                let (child_id, child) = context.build_component(&ui::component::RectangleBuilder {
                                     color: Vec4::new(0.97, 0.63, 0.28, 1.0),
                                     ..Default::default()
-                                }
-                            ],
-                            on_click: Some(Rc::new(|| info!("Clicked!!"))),
-                            ..Default::default()
+                                });
+                                
+                                let mut color1 = Vec4::new(0.0, 0.7, 0.0, 1.0);
+                                let (button, style, _) = ui::component::ButtonBuilder {
+                                    style: taffy::Style {
+                                        margin: taffy::Rect::length(11.0f32),
+                                        ..ui::component::ButtonBuilder::DEFAULT.style
+                                    },
+                                    children: &[],
+                                    on_click: Cell::new(Some(Box::new(move || {
+                                        let mut child_borrow = child.borrow_mut();
+                                        let button_rect = (child_borrow.as_mut() as &mut dyn Any)
+                                            .downcast_mut::<ui::component::Rectangle>()
+                                            .unwrap();
+                                        
+                                        mem::swap(&mut color1, &mut button_rect.color);
+                                    }))),
+                                    ..Default::default()
+                                }.build(context);
+                                
+                                (button, style, Children::Built(vec![ child_id ]))
+                            },
+                            _phantom: PhantomData
                         },
                     ],
                     ..Default::default()
