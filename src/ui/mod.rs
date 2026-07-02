@@ -1,4 +1,4 @@
-use std::{cell::RefCell, sync::LazyLock, time::Duration};
+use std::{cell::RefCell, rc::Rc, sync::LazyLock, time::Duration};
 
 use glam::{Mat4, Vec3};
 use smallvec::{SmallVec, smallvec};
@@ -24,7 +24,7 @@ pub struct UI {
     screen_height: f32,
     camera_bind_group: wgpu::BindGroup,
     camera: VecBuf<Camera>,
-    taffy: taffy::TaffyTree<RefCell<Component>>,
+    taffy: taffy::TaffyTree<Rc<Component>>,
     root_id: taffy::NodeId,
     projection_matrix: Mat4,
     colored_rects: Option<VecBuf<primitives::ColoredRectangle>>,
@@ -126,9 +126,9 @@ impl UI {
         self.taffy
             .set_node_context(
                 component_id,
-                Some(RefCell::new(Component {
+                Some(Rc::new(Component {
                     node_id: component_id,
-                    component,
+                    component: RefCell::new(component),
                 })),
             )
             .unwrap();
@@ -170,9 +170,9 @@ impl UI {
         self.taffy
             .set_node_context(
                 child,
-                Some(RefCell::new(Component {
+                Some(Rc::new(Component {
                     node_id: child,
-                    component: Box::new(component),
+                    component: RefCell::new(Box::new(component)),
                 })),
             )
             .unwrap();
@@ -187,7 +187,7 @@ impl UI {
             /* Transform matrix */ Mat4,
             /* width */ f32,
             /* height */ f32,
-            /* component */ &RefCell<Component>,
+            /* component */ &Rc<Component>,
         ) -> bool,
     {
         struct State<'a> {

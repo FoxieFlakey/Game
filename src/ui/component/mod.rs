@@ -1,6 +1,6 @@
-use std::borrow::Cow;
-use std::ops::Deref;
-use std::ops::DerefMut;
+use std::cell::Ref;
+use std::cell::RefCell;
+use std::cell::RefMut;
 use std::time::Duration;
 
 use glam::Mat4;
@@ -113,7 +113,7 @@ pub trait ComponentTrait {
 // (it still mostly passthru methods to underlying one)
 pub struct Component {
     pub(super) node_id: taffy::NodeId,
-    pub(super) component: Box<dyn ComponentTrait>,
+    pub(super) component: RefCell<Box<dyn ComponentTrait>>,
 }
 
 impl Component {
@@ -122,18 +122,12 @@ impl Component {
     pub fn get_node_id(&self) -> taffy::NodeId {
         self.node_id
     }
-}
 
-impl DerefMut for Component {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut *self.component
+    pub fn borrow<'a>(&'a self) -> Ref<'a, Box<dyn ComponentTrait>> {
+        self.component.borrow()
     }
-}
 
-impl Deref for Component {
-    type Target = dyn ComponentTrait;
-
-    fn deref(&self) -> &Self::Target {
-        &*self.component
+    pub fn borrow_mut<'a>(&'a self) -> RefMut<'a, Box<dyn ComponentTrait>> {
+        self.component.borrow_mut()
     }
 }
